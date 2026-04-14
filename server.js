@@ -325,9 +325,15 @@ app.get('/api/activaciones/eset/resumen', handler(async (req, res) => {
 // ════════════════════════════════════════════
 app.get('/api/activaciones-eset', handler(async (req, res) => {
   const { rows } = await pool.query(`
-    SELECT ae.*, t.nombre AS tecnico_nombre
+    SELECT
+      ae.id, ae.clave_id, ae.tecnico_id, ae.id_publico, ae.nombre_equipo,
+      ae.nombre_cliente, ae.url_captura, ae.numero_activacion,
+      ae.fecha_activacion, ae.nombre_puesto, ae.nombre_dispositivo,
+      t.nombre AS tecnico_nombre,
+      cs.clave AS serial_key
     FROM activaciones_eset ae
     LEFT JOIN tecnicos t ON t.id = ae.tecnico_id
+    LEFT JOIN claves_seriales cs ON cs.id = ae.clave_id
     ORDER BY ae.id DESC
   `);
   res.json(rows);
