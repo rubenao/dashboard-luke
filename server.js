@@ -320,5 +320,18 @@ app.get('/api/activaciones/eset/resumen', handler(async (req, res) => {
   res.json(rows);
 }));
 
+// ════════════════════════════════════════════
+// LICENCIAS ACTIVADAS (tabla activaciones_eset)
+// ════════════════════════════════════════════
+app.get('/api/activaciones-eset', handler(async (req, res) => {
+  const { rows } = await pool.query(`
+    SELECT ae.*, t.nombre AS tecnico_nombre
+    FROM activaciones_eset ae
+    LEFT JOIN tecnicos t ON t.id = ae.tecnico_id
+    ORDER BY ae.id DESC
+  `);
+  res.json(rows);
+}));
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => console.log(`Panel corriendo en http://localhost:${PORT}`));

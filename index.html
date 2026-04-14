@@ -319,10 +319,24 @@
       <option value="">Todos los técnicos</option>
     </select>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" style="margin-bottom:28px">
     <table>
       <thead><tr><th>ID</th><th>Técnico</th><th>Producto</th><th>Precio USD</th><th>Precio PEN</th><th>Estado</th><th>Fecha</th></tr></thead>
       <tbody id="eset-detalle-tabla"></tbody>
+    </table>
+  </div>
+
+  <!-- Licencias activadas -->
+  <div class="toolbar" style="margin-top:8px">
+    <h2 style="font-size:14px;color:var(--muted)">Licencias activadas</h2>
+    <div class="toolbar-right">
+      <input id="eset-lic-buscar" class="search-input" placeholder="Buscar cliente, equipo, ID..." oninput="filtrarLicencias()" style="max-width:240px;">
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>ID Público</th><th>Cliente</th><th>Equipo</th><th>Dispositivo</th><th>Puesto</th><th>N° Activación</th><th>Técnico</th><th>Fecha</th><th>Captura</th></tr></thead>
+      <tbody id="eset-licencias-tabla"></tbody>
     </table>
   </div>
 </div>
@@ -1011,6 +1025,7 @@ async function loadEset() {
       tecnicos.map(r => `<option value="${r.tecnico_id}">${r.tecnico_nombre || r.tecnico_id}</option>`).join('');
 
     await loadEsetDetalle();
+    await loadLicenciasEset();
   } catch(e) { toast('Error cargando activaciones ESET: ' + e.message, false); }
 }
 
@@ -1037,6 +1052,45 @@ async function loadEsetDetalle() {
       </tr>`;
     }).join('') || '<tr><td colspan="7" class="text-muted" style="text-align:center;padding:20px">Sin activaciones ESET</td></tr>';
   } catch(e) { toast('Error cargando detalle ESET: ' + e.message, false); }
+}
+
+let _licenciasEset = [];
+
+async function loadLicenciasEset() {
+  try {
+    _licenciasEset = await api('/activaciones-eset');
+    filtrarLicencias();
+  } catch(e) { toast('Error cargando licencias ESET: ' + e.message, false); }
+}
+
+function filtrarLicencias() {
+  const q = (document.getElementById('eset-lic-buscar')?.value || '').toLowerCase();
+  const lista = _licenciasEset.filter(l =>
+    (l.nombre_cliente   || '').toLowerCase().includes(q) ||
+    (l.nombre_equipo    || '').toLowerCase().includes(q) ||
+    (l.nombre_dispositivo || '').toLowerCase().includes(q) ||
+    (l.id_publico       || '').toLowerCase().includes(q) ||
+    (l.nombre_puesto    || '').toLowerCase().includes(q)
+  );
+  const vacio = '<tr><td colspan="10" class="text-muted" style="text-align:center;padding:20px">Sin licencias activadas</td></tr>';
+  document.getElementById('eset-licencias-tabla').innerHTML = lista.map(l => {
+    const fecha = l.fecha_activacion ? new Date(l.fecha_activacion).toLocaleDateString('es-PE') : '—';
+    const captura = l.url_captura
+      ? `<a href="${l.url_captura}" target="_blank" class="btn btn-ghost btn-sm">Ver</a>`
+      : '<span class="text-muted">—</span>';
+    return `<tr>
+      <td class="text-muted">${l.id}</td>
+      <td class="monospace" style="font-size:12px">${l.id_publico || '—'}</td>
+      <td>${l.nombre_cliente || '—'}</td>
+      <td>${l.nombre_equipo || '—'}</td>
+      <td>${l.nombre_dispositivo || '—'}</td>
+      <td class="text-muted">${l.nombre_puesto || '—'}</td>
+      <td style="text-align:center">${l.numero_activacion ?? '—'}</td>
+      <td>${l.tecnico_nombre || '—'}</td>
+      <td class="text-muted">${fecha}</td>
+      <td>${captura}</td>
+    </tr>`;
+  }).join('') || vacio;
 }
 
 // ── Init ──────────────────────────────────
