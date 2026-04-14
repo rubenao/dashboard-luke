@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Admin - Licencias</title>
+<style>
+  :root {
+    --bg:      #0f1117;
+    --surface: #1a1d27;
+    --border:  #2a2d3e;
+    --accent:  #5b6ef5;
+    --green:   #22c55e;
+    --red:     #ef4444;
+    --yellow:  #f59e0b;
+    --text:    #e2e8f0;
+    --muted:   #64748b;
+    --radius:  10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* ── Header ── */
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header span { color: var(--muted); font-size: 13px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-left: auto; flex-shrink: 0; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 4px; padding: 16px 28px 0; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 9px 20px; border-radius: var(--radius) var(--radius) 0 0; cursor: pointer; color: var(--muted); font-weight: 500; border: 1px solid transparent; border-bottom: none; transition: .15s; white-space: nowrap; flex-shrink: 0; }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--surface); color: var(--text); border-color: var(--border); border-bottom-color: var(--surface); margin-bottom: -1px; }
+
+  /* ── Layout ── */
+  .page { display: none; padding: 24px 28px; }
+  .page.active { display: block; }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
+  .toolbar h2 { font-size: 16px; font-weight: 600; }
+  .toolbar-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  /* ── Botones ── */
+  .btn { padding: 8px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: .15s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #4a5ce4; }
+  .btn-success { background: var(--green); color: #fff; }
+  .btn-success:hover { background: #16a34a; }
+  .btn-warning { background: var(--yellow); color: #000; }
+  .btn-warning:hover { background: #d97706; }
+  .btn-danger  { background: transparent; color: var(--red); border: 1px solid var(--red); }
+  .btn-danger:hover { background: var(--red); color: #fff; }
+  .btn-ghost { background: var(--border); color: var(--text); }
+  .btn-ghost:hover { background: #3a3d52; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* ── Tabla ── */
+  .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { background: var(--surface); padding: 11px 14px; text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  tbody tr { border-top: 1px solid var(--border); transition: .1s; }
+  tbody tr:hover { background: rgba(255,255,255,.03); }
+  tbody td { padding: 10px 14px; vertical-align: middle; }
+
+  /* ── Badges ── */
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-green  { background: rgba(34,197,94,.15);  color: var(--green); }
+  .badge-red    { background: rgba(239,68,68,.15);   color: var(--red); }
+  .badge-yellow { background: rgba(245,158,11,.15);  color: var(--yellow); }
+  .badge-blue   { background: rgba(91,110,245,.15);  color: var(--accent); }
+  .badge-gray   { background: rgba(100,116,139,.15); color: var(--muted); }
+
+  /* ── Stock bar ── */
+  .stock-bar { display: flex; align-items: center; gap: 8px; }
+  .bar-wrap { flex: 1; height: 6px; background: var(--border); border-radius: 3px; min-width: 60px; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+
+  /* ── Cards ── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .card .label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .card .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+
+  /* ── Modal ── */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 100; align-items: center; justify-content: center; padding: 16px; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+  .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+
+  /* ── Formulario ── */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 500; }
+  .field input, .field select, .field textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 9px 12px; color: var(--text); font-size: 13px; outline: none; transition: .15s; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field input[readonly] { opacity: .6; cursor: not-allowed; }
+  .field textarea { min-height: 110px; resize: vertical; font-family: monospace; }
+  .field select option { background: var(--surface); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* ── Search ── */
+  .search-input { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 8px 12px; color: var(--text); font-size: 13px; outline: none; }
+  .search-input:focus { border-color: var(--accent); }
+
+  /* ── Actions ── */
+  .actions { display: flex; gap: 6px; }
+
+  /* ── Toast ── */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 12px 18px; font-size: 13px; font-weight: 500; transform: translateY(80px); opacity: 0; transition: .25s; z-index: 999; max-width: 300px; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.ok  { border-left: 4px solid var(--green); }
+  .toast.err { border-left: 4px solid var(--red); }
+
+  .monospace { font-family: monospace; font-size: 12px; }
+  .text-muted { color: var(--muted); }
+
+  /* ══ RESPONSIVE ══ */
+  @media (max-width: 640px) {
+    header { padding: 12px 16px; }
+    header h1 { font-size: 16px; }
+    header span { display: none; }
+    .tabs { padding: 10px 12px 0; gap: 2px; }
+    .tab { padding: 8px 12px; font-size: 12px; }
+    .page { padding: 16px 12px; }
+    .toolbar { flex-direction: column; align-items: flex-start; }
+    .toolbar > .btn { width: 100%; }
+    .toolbar-right { width: 100%; }
+    .toolbar-right .btn, .toolbar-right .search-input, .toolbar-right select { flex: 1; }
+    .cards { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .card { padding: 12px; }
+    .card .value { font-size: 20px; }
+    tbody td, thead th { padding: 9px 10px; font-size: 12px; }
+    .modal { padding: 20px 16px; }
+    .field-row { grid-template-columns: 1fr; }
+    .modal-footer { flex-direction: column-reverse; }
+    .modal-footer .btn { width: 100%; text-align: center; }
+    .toast { left: 12px; right: 12px; bottom: 16px; max-width: unset; }
+    .actions { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5b6ef5" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+  <h1>Panel Admin</h1>
+  <span>Sistema de Licencias</span>
+  <div class="dot" title="Conectado"></div>
+</header>
+
+<div class="tabs">
+  <div class="tab active"  onclick="setTab('stock')">📊 Stock</div>
+  <div class="tab" onclick="setTab('categorias')">📁 Categorías</div>
+  <div class="tab" onclick="setTab('productos')">📦 Productos</div>
+  <div class="tab" onclick="setTab('seriales')">🔑 Seriales</div>
+  <div class="tab" onclick="setTab('tecnicos')">👥 Técnicos</div>
+  <div class="tab" onclick="setTab('pagos')">💰 Pagos</div>
+  <div class="tab" onclick="setTab('eset')">🛡️ Activaciones ESET</div>
+</div>
+
+<!-- ══ STOCK ══ -->
+<div class="page active" id="page-stock">
+  <div class="toolbar">
+    <h2>Resumen de Stock</h2>
+    <button class="btn btn-ghost" onclick="loadStock()">↻ Actualizar</button>
+  </div>
+  <div class="cards" id="stock-cards"></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Producto</th><th>Comando</th><th>Usos disp.</th><th>Seriales activos</th><th>Entregadas</th><th>Stock</th><th>Usos máx/serial</th><th>Alerta en</th></tr></thead>
+      <tbody id="stock-table"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ CATEGORÍAS ══ -->
+<div class="page" id="page-categorias">
+  <div class="toolbar">
+    <h2>Categorías de Productos</h2>
+    <button class="btn btn-primary" onclick="openModal('modal-categoria')">+ Nueva categoría</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Comando</th><th>Nombre</th><th>Descripción</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody id="tabla-categorias"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ PRODUCTOS ══ -->
+<div class="page" id="page-productos">
+  <div class="toolbar">
+    <h2>Productos</h2>
+    <button class="btn btn-primary" onclick="openModal('modal-producto')">+ Nuevo producto</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Comando</th><th>Nombre</th><th>Categoría</th><th>Precio PEN</th><th>Precio USD</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody id="tabla-productos"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ SERIALES ══ -->
+<div class="page" id="page-seriales">
+  <div class="toolbar">
+    <h2>Claves Seriales</h2>
+    <div class="toolbar-right">
+      <select id="filtro-producto" class="search-input" onchange="loadSeriales()">
+        <option value="">Todos los productos</option>
+      </select>
+      <select id="filtro-estado" class="search-input" onchange="loadSeriales()">
+        <option value="">Todos los estados</option>
+        <option value="disponible">Disponible</option>
+        <option value="entregada">Entregada</option>
+        <option value="expirada">Expirada</option>
+      </select>
+      <button class="btn btn-primary" onclick="openModal('modal-serial')">+ Agregar claves</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Clave</th><th>Producto</th><th>Estado</th><th>Técnico</th><th>Fecha entrega</th><th></th></tr></thead>
+      <tbody id="tabla-seriales"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ TÉCNICOS ══ -->
+<div class="page" id="page-tecnicos">
+  <div class="toolbar">
+    <h2>Técnicos</h2>
+    <div class="toolbar-right">
+      <input class="search-input" id="search-tecnico" placeholder="Buscar técnico..." oninput="filterTecnicos()">
+      <button class="btn btn-primary" onclick="openModal('modal-tecnico')">+ Nuevo técnico</button>
+    </div>
+  </div>
+  <div class="cards" id="tecnico-cards"></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Nombre</th><th>Teléfono</th><th>Saldo USDT</th><th>Deuda USD</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody id="tabla-tecnicos"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ PAGOS ══ -->
+<div class="page" id="page-pagos">
+  <div class="toolbar">
+    <h2>Pagos por Técnico</h2>
+    <div class="toolbar-right">
+      <select id="pagos-filtro-estado" class="search-input" onchange="loadPagosDetalle()">
+        <option value="">Todos los estados</option>
+        <option value="descontado">Descontados</option>
+        <option value="pendiente">Pendientes</option>
+      </select>
+      <button class="btn btn-ghost" onclick="loadPagos()">↻ Actualizar</button>
+    </div>
+  </div>
+  <div class="cards" id="pagos-cards"></div>
+
+  <!-- Resumen por técnico -->
+  <div class="toolbar" style="margin-top:8px">
+    <h2 style="font-size:14px;color:var(--muted)">Resumen por técnico</h2>
+  </div>
+  <div class="table-wrap" style="margin-bottom:28px">
+    <table>
+      <thead><tr><th>Técnico</th><th>Teléfono</th><th>Total pedidos</th><th>Pagados</th><th>Pendientes</th><th>Total pagado USD</th><th>Total pagado PEN</th><th>Deuda USD</th></tr></thead>
+      <tbody id="pagos-resumen-tabla"></tbody>
+    </table>
+  </div>
+
+  <!-- Detalle de pagos -->
+  <div class="toolbar">
+    <h2 style="font-size:14px;color:var(--muted)">Detalle de pedidos</h2>
+    <select id="pagos-filtro-tecnico" class="search-input" onchange="loadPagosDetalle()">
+      <option value="">Todos los técnicos</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Técnico</th><th>Producto</th><th>Precio USD</th><th>Precio PEN</th><th>Estado</th><th>Fecha</th></tr></thead>
+      <tbody id="pagos-detalle-tabla"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ ACTIVACIONES ESET ══ -->
+<div class="page" id="page-eset">
+  <div class="toolbar">
+    <h2>Activaciones ESET</h2>
+    <div class="toolbar-right">
+      <select id="eset-filtro-estado" class="search-input" onchange="loadEsetDetalle()">
+        <option value="">Todos los estados</option>
+        <option value="descontado">Descontados</option>
+        <option value="pendiente">Pendientes</option>
+      </select>
+      <button class="btn btn-ghost" onclick="loadEset()">↻ Actualizar</button>
+    </div>
+  </div>
+  <div class="cards" id="eset-cards"></div>
+
+  <!-- Resumen por técnico/producto -->
+  <div class="toolbar" style="margin-top:8px">
+    <h2 style="font-size:14px;color:var(--muted)">Resumen por técnico</h2>
+  </div>
+  <div class="table-wrap" style="margin-bottom:28px">
+    <table>
+      <thead><tr><th>Técnico</th><th>Producto</th><th>Total activaciones</th><th>Pagadas</th><th>Pendientes</th><th>Total USD</th><th>Total PEN</th></tr></thead>
+      <tbody id="eset-resumen-tabla"></tbody>
+    </table>
+  </div>
+
+  <!-- Detalle activaciones -->
+  <div class="toolbar">
+    <h2 style="font-size:14px;color:var(--muted)">Detalle de activaciones</h2>
+    <select id="eset-filtro-tecnico" class="search-input" onchange="loadEsetDetalle()">
+      <option value="">Todos los técnicos</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Técnico</th><th>Producto</th><th>Precio USD</th><th>Precio PEN</th><th>Estado</th><th>Fecha</th></tr></thead>
+      <tbody id="eset-detalle-tabla"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════ MODALES ══════════ -->
+
+<!-- Nueva / Editar categoría -->
+<div class="overlay" id="modal-categoria">
+  <div class="modal">
+    <h3 id="modal-categoria-titulo">Nueva Categoría</h3>
+    <input type="hidden" id="cat-id">
+    <div class="field"><label>Comando (ej: /12)</label><input id="cat-comando" placeholder="/12"></div>
+    <div class="field"><label>Nombre</label><input id="cat-nombre" placeholder="Nombre de la categoría"></div>
+    <div class="field"><label>Descripción (opcional)</label><input id="cat-desc" placeholder="Descripción breve"></div>
+    <div class="field" id="cat-activo-wrap" style="display:none">
+      <label>Estado</label>
+      <select id="cat-activo">
+        <option value="true">Activa</option>
+        <option value="false">Inactiva</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-categoria')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCategoria()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Nuevo / Editar producto -->
+<div class="overlay" id="modal-producto">
+  <div class="modal">
+    <h3 id="modal-producto-titulo">Nuevo Producto</h3>
+    <input type="hidden" id="prod-id">
+    <div class="field"><label>Comando (ej: /301)</label><input id="prod-comando" placeholder="/301"></div>
+    <div class="field"><label>Categoría</label><select id="prod-categoria"></select></div>
+    <div class="field"><label>Nombre del producto</label><input id="prod-nombre" placeholder="Nombre del producto"></div>
+    <div class="field-row">
+      <div class="field"><label>Precio PEN (S/)</label><input id="prod-pen" type="number" step="0.01" placeholder="10.00"></div>
+      <div class="field"><label>Precio USD ($)</label><input id="prod-usd" type="number" step="0.01" placeholder="2.85"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Alerta de stock en (usos)</label><input id="prod-alerta" type="number" value="10"></div>
+      <div class="field"><label>Usos máximos por serial</label><input id="prod-usos" type="number" value="1" min="1" title="Ej: Office Phone Key = 50, ESET = 25, otros = 1"></div>
+    </div>
+    <div class="field" id="prod-activo-wrap" style="display:none">
+      <label>Estado</label>
+      <select id="prod-activo">
+        <option value="true">Activo</option>
+        <option value="false">Inactivo</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-producto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProducto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Agregar seriales (bulk) -->
+<div class="overlay" id="modal-serial">
+  <div class="modal">
+    <h3>Agregar Claves Seriales</h3>
+    <div class="field"><label>Producto</label><select id="serial-producto"></select></div>
+    <div class="field">
+      <label>Claves (una por línea)</label>
+      <textarea id="serial-claves" placeholder="XXXXX-XXXXX-XXXXX-XXXXX&#10;YYYYY-YYYYY-YYYYY-YYYYY&#10;..."></textarea>
+    </div>
+    <div id="serial-preview" class="text-muted" style="font-size:12px;margin-bottom:8px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-serial')">Cancelar</button>
+      <button class="btn btn-success" onclick="saveSeriales()">Importar claves</button>
+    </div>
+  </div>
+</div>
+
+<!-- Nuevo / Editar técnico -->
+<div class="overlay" id="modal-tecnico">
+  <div class="modal">
+    <h3 id="modal-tecnico-titulo">Nuevo Técnico</h3>
+    <input type="hidden" id="tec-id">
+    <div class="field"><label>Nombre</label><input id="tec-nombre" placeholder="Nombre completo"></div>
+    <div class="field"><label>Teléfono WhatsApp</label><input id="tec-telefono" placeholder="51987654321"></div>
+    <div class="field" id="tec-saldo-wrap">
+      <label>Saldo USDT</label>
+      <input id="tec-saldo" type="number" step="0.01" value="0">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-tecnico')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveTecnico()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Editar saldo -->
+<div class="overlay" id="modal-saldo">
+  <div class="modal">
+    <h3>Editar Saldo</h3>
+    <input type="hidden" id="saldo-tecnico-id">
+    <div class="field"><label>Técnico</label><input id="saldo-tecnico-nombre" readonly></div>
+    <div class="field"><label>Nuevo saldo USDT</label><input id="saldo-nuevo" type="number" step="0.01"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-saldo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSaldo()">Actualizar saldo</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://localhost:3000/api';
+let _categorias = [];
+let _productos   = [];
+let _tecnicos    = [];
+
+// ── Tabs ──────────────────────────────────
+function setTab(name) {
+  const labels = { stock:'Stock', categorias:'Categorías', productos:'Productos', seriales:'Seriales', tecnicos:'Técnicos', pagos:'Pagos', eset:'ESET' };
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.textContent.includes(labels[name])));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  ({ stock: loadStock, categorias: loadCategorias, productos: loadProductos, seriales: loadSeriales, tecnicos: loadTecnicos, pagos: loadPagos, eset: loadEset })[name]();
+}
+
+// ── Modales ───────────────────────────────
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  if (id === 'modal-producto') fillSelectCategorias();
+  if (id === 'modal-serial')   fillSelectSerialProductos();
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
+
+// ── Toast ─────────────────────────────────
+function toast(msg, ok = true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${ok ? 'ok' : 'err'} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Fetch helper ──────────────────────────
+async function api(path, method = 'GET', body) {
+  const res = await fetch(API + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Error desconocido');
+  return data;
+}
+
+// ══════════ STOCK ══════════
+async function loadStock() {
+  try {
+    const data = await api('/stock');
+    const totalDisp = data.reduce((s, r) => s + Number(r.disponibles), 0);
+    const conAlerta = data.filter(r => Number(r.disponibles) <= Number(r.alerta_stock_en)).length;
+    document.getElementById('stock-cards').innerHTML = `
+      <div class="card"><div class="label">Productos activos</div><div class="value">${data.length}</div></div>
+      <div class="card"><div class="label">Claves disponibles</div><div class="value" style="color:var(--green)">${totalDisp}</div></div>
+      <div class="card"><div class="label">Alertas de stock</div><div class="value" style="color:var(--yellow)">${conAlerta}</div></div>
+    `;
+    document.getElementById('stock-table').innerHTML = data.map(r => {
+      const disp    = Number(r.disponibles);
+      const alerta  = Number(r.alerta_stock_en);
+      const serActivos = Number(r.seriales_activos);
+      const total   = disp + Number(r.entregadas);
+      const pct     = total > 0 ? Math.round(disp / total * 100) : 0;
+      const color   = disp === 0 ? 'var(--red)' : disp <= alerta ? 'var(--yellow)' : 'var(--green)';
+      return `<tr>
+        <td>${r.nombre}</td>
+        <td><span class="badge badge-blue monospace">${r.comando}</span></td>
+        <td><b style="color:${color}">${disp}</b></td>
+        <td class="text-muted">${serActivos}</td>
+        <td class="text-muted">${r.entregadas}</td>
+        <td><div class="stock-bar"><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div><span style="font-size:11px;color:var(--muted)">${pct}%</span></div></td>
+        <td class="text-muted">${r.usos_maximos || 1}</td>
+        <td class="text-muted">${alerta}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { toast('Error cargando stock: ' + e.message, false); }
+}
+
+// ══════════ CATEGORÍAS ══════════
+async function loadCategorias() {
+  try {
+    _categorias = await api('/categorias');
+    document.getElementById('tabla-categorias').innerHTML = _categorias.map(c => `<tr>
+      <td class="text-muted">${c.id}</td>
+      <td><span class="badge badge-blue monospace">${c.comando}</span></td>
+      <td>${c.nombre}</td>
+      <td class="text-muted">${c.descripcion || '—'}</td>
+      <td><span class="badge ${c.activo ? 'badge-green' : 'badge-gray'}">${c.activo ? 'Activa' : 'Inactiva'}</span></td>
+      <td><div class="actions">
+        <button class="btn btn-warning btn-sm" onclick="editCategoria(${c.id})">Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCategoria(${c.id})">Eliminar</button>
+      </div></td>
+    </tr>`).join('');
+  } catch(e) { toast('Error cargando categorías: ' + e.message, false); }
+}
+
+function editCategoria(id) {
+  const c = _categorias.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('modal-categoria-titulo').textContent = 'Editar Categoría';
+  document.getElementById('cat-id').value      = c.id;
+  document.getElementById('cat-comando').value = c.comando;
+  document.getElementById('cat-nombre').value  = c.nombre;
+  document.getElementById('cat-desc').value    = c.descripcion || '';
+  document.getElementById('cat-activo').value  = c.activo ? 'true' : 'false';
+  document.getElementById('cat-activo-wrap').style.display = 'block';
+  openModal('modal-categoria');
+}
+
+function resetModalCategoria() {
+  document.getElementById('modal-categoria-titulo').textContent = 'Nueva Categoría';
+  document.getElementById('cat-id').value = '';
+  document.getElementById('cat-comando').value = '';
+  document.getElementById('cat-nombre').value  = '';
+  document.getElementById('cat-desc').value    = '';
+  document.getElementById('cat-activo-wrap').style.display = 'none';
+}
+
+async function saveCategoria() {
+  const id      = document.getElementById('cat-id').value;
+  const comando = document.getElementById('cat-comando').value.trim();
+  const nombre  = document.getElementById('cat-nombre').value.trim();
+  const desc    = document.getElementById('cat-desc').value.trim();
+  const activo  = document.getElementById('cat-activo').value === 'true';
+  if (!comando || !nombre) return toast('Completa comando y nombre', false);
+  try {
+    if (id) {
+      await api('/categorias/' + id, 'PUT', { comando, nombre, descripcion: desc, activo });
+      toast('Categoría actualizada');
+    } else {
+      await api('/categorias', 'POST', { comando, nombre, descripcion: desc });
+      toast('Categoría creada');
+    }
+    closeModal('modal-categoria');
+    resetModalCategoria();
+    loadCategorias();
+  } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+async function deleteCategoria(id) {
+  if (!confirm('¿Eliminar esta categoría?')) return;
+  try { await api('/categorias/' + id, 'DELETE'); toast('Categoría eliminada'); loadCategorias(); }
+  catch(e) { toast('Error: ' + e.message, false); }
+}
+
+// ══════════ PRODUCTOS ══════════
+async function loadProductos() {
+  try {
+    _productos = await api('/productos');
+    document.getElementById('tabla-productos').innerHTML = _productos.map(p => {
+      const stk    = Number(p.stock);
+      const aAlert = Number(p.alerta_stock_en);
+      const badge  = stk === 0 ? 'badge-red' : stk <= aAlert ? 'badge-yellow' : 'badge-green';
+      return `<tr>
+        <td><span class="badge badge-blue monospace">${p.comando}</span></td>
+        <td>${p.nombre}</td>
+        <td class="text-muted">${p.categoria_nombre || '—'}</td>
+        <td>S/ ${Number(p.precio_pen).toFixed(2)}</td>
+        <td>$ ${Number(p.precio_usd).toFixed(2)}</td>
+        <td><span class="badge ${badge}">${stk} claves</span></td>
+        <td><span class="badge ${p.activo ? 'badge-green' : 'badge-gray'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
+        <td><div class="actions">
+          <button class="btn btn-warning btn-sm" onclick="editProducto(${p.id})">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteProducto(${p.id})">Eliminar</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { toast('Error cargando productos: ' + e.message, false); }
+}
+
+function fillSelectCategorias() {
+  document.getElementById('prod-categoria').innerHTML =
+    '<option value="">Sin categoría</option>' +
+    _categorias.map(c => `<option value="${c.id}">${c.comando} - ${c.nombre}</option>`).join('');
+}
+
+function editProducto(id) {
+  const p = _productos.find(x => x.id === id);
+  if (!p) return;
+  fillSelectCategorias();
+  document.getElementById('modal-producto-titulo').textContent = 'Editar Producto';
+  document.getElementById('prod-id').value      = p.id;
+  document.getElementById('prod-comando').value = p.comando;
+  document.getElementById('prod-categoria').value = p.categoria_id || '';
+  document.getElementById('prod-nombre').value  = p.nombre;
+  document.getElementById('prod-pen').value     = p.precio_pen;
+  document.getElementById('prod-usd').value     = p.precio_usd;
+  document.getElementById('prod-alerta').value  = p.alerta_stock_en;
+  document.getElementById('prod-usos').value    = p.usos_maximos || 1;
+  document.getElementById('prod-activo').value  = p.activo ? 'true' : 'false';
+  document.getElementById('prod-activo-wrap').style.display = 'block';
+  document.getElementById('modal-producto').classList.add('open');
+}
+
+function resetModalProducto() {
+  document.getElementById('modal-producto-titulo').textContent = 'Nuevo Producto';
+  document.getElementById('prod-id').value      = '';
+  document.getElementById('prod-comando').value = '';
+  document.getElementById('prod-nombre').value  = '';
+  document.getElementById('prod-pen').value     = '';
+  document.getElementById('prod-usd').value     = '';
+  document.getElementById('prod-alerta').value  = '10';
+  document.getElementById('prod-usos').value    = '1';
+  document.getElementById('prod-activo-wrap').style.display = 'none';
+}
+
+async function saveProducto() {
+  const id = document.getElementById('prod-id').value;
+  const body = {
+    comando:         document.getElementById('prod-comando').value.trim(),
+    categoria_id:    document.getElementById('prod-categoria').value || null,
+    nombre:          document.getElementById('prod-nombre').value.trim(),
+    precio_pen:      document.getElementById('prod-pen').value,
+    precio_usd:      document.getElementById('prod-usd').value,
+    alerta_stock_en: document.getElementById('prod-alerta').value || 10,
+    usos_maximos:    document.getElementById('prod-usos').value || 1,
+    activo:          document.getElementById('prod-activo').value === 'true',
+  };
+  if (!body.comando || !body.nombre) return toast('Completa comando y nombre', false);
+  try {
+    if (id) {
+      await api('/productos/' + id, 'PUT', body);
+      toast('Producto actualizado');
+    } else {
+      await api('/productos', 'POST', body);
+      toast('Producto creado');
+    }
+    closeModal('modal-producto');
+    resetModalProducto();
+    loadProductos();
+  } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+async function deleteProducto(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  try { await api('/productos/' + id, 'DELETE'); toast('Producto eliminado'); loadProductos(); }
+  catch(e) { toast('Error: ' + e.message, false); }
+}
+
+// ══════════ SERIALES ══════════
+async function loadSeriales() {
+  try {
+    const pid = document.getElementById('filtro-producto').value;
+    const est = document.getElementById('filtro-estado').value;
+    const params = new URLSearchParams();
+    if (pid) params.set('producto_id', pid);
+    if (est) params.set('estado', est);
+    const data = await api('/seriales?' + params);
+    document.getElementById('tabla-seriales').innerHTML = data.map(s => {
+      const badge = s.estado === 'disponible' ? 'badge-green' : s.estado === 'entregada' ? 'badge-blue' : 'badge-red';
+      const fecha = s.fecha_entrega ? new Date(s.fecha_entrega).toLocaleDateString('es-PE') : '—';
+      return `<tr>
+        <td class="text-muted">${s.id}</td>
+        <td class="monospace" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.clave}">${s.clave}</td>
+        <td>${s.producto_nombre || '—'}</td>
+        <td><span class="badge ${badge}">${s.estado}</span></td>
+        <td class="text-muted">${s.tecnico_nombre || '—'}</td>
+        <td class="text-muted">${fecha}</td>
+        <td>${s.estado === 'disponible' ? `<button class="btn btn-danger btn-sm" onclick="deleteSerial(${s.id})">✕</button>` : ''}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { toast('Error cargando seriales: ' + e.message, false); }
+}
+
+function fillSelectSerialProductos() {
+  const opts = _productos.map(p => `<option value="${p.id}">${p.comando} - ${p.nombre}</option>`).join('');
+  document.getElementById('serial-producto').innerHTML = '<option value="">Selecciona producto</option>' + opts;
+  document.getElementById('filtro-producto').innerHTML = '<option value="">Todos los productos</option>' + opts;
+}
+
+document.getElementById('serial-claves').addEventListener('input', function() {
+  const n = this.value.split('\n').filter(l => l.trim()).length;
+  document.getElementById('serial-preview').textContent = n > 0 ? `${n} clave(s) detectada(s)` : '';
+});
+
+async function saveSeriales() {
+  const producto_id  = document.getElementById('serial-producto').value;
+  const claves_texto = document.getElementById('serial-claves').value;
+  if (!producto_id)        return toast('Selecciona un producto', false);
+  if (!claves_texto.trim()) return toast('Pega al menos una clave', false);
+  try {
+    const r = await api('/seriales/bulk', 'POST', { producto_id, claves_texto });
+    closeModal('modal-serial');
+    toast(`${r.insertadas} clave(s) importada(s)`);
+    document.getElementById('serial-claves').value = '';
+    loadSeriales();
+    loadStock();
+  } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+async function deleteSerial(id) {
+  if (!confirm('¿Eliminar esta clave?')) return;
+  try { await api('/seriales/' + id, 'DELETE'); toast('Clave eliminada'); loadSeriales(); }
+  catch(e) { toast('Error: ' + e.message, false); }
+}
+
+// ══════════ TÉCNICOS ══════════
+async function loadTecnicos() {
+  try {
+    _tecnicos = await api('/tecnicos');
+    const totalDeuda = _tecnicos.reduce((s, t) => s + Number(t.deuda_usd), 0);
+    const activos    = _tecnicos.filter(t => t.estado).length;
+    document.getElementById('tecnico-cards').innerHTML = `
+      <div class="card"><div class="label">Total técnicos</div><div class="value">${_tecnicos.length}</div></div>
+      <div class="card"><div class="label">Activos</div><div class="value" style="color:var(--green)">${activos}</div></div>
+      <div class="card"><div class="label">Deuda total USD</div><div class="value" style="color:var(--yellow)">$${totalDeuda.toFixed(2)}</div></div>
+    `;
+    renderTecnicos(_tecnicos);
+  } catch(e) { toast('Error cargando técnicos: ' + e.message, false); }
+}
+
+function renderTecnicos(lista) {
+  document.getElementById('tabla-tecnicos').innerHTML = lista.map(t => `<tr>
+    <td>${t.nombre || '<span class="text-muted">Sin nombre</span>'}</td>
+    <td class="monospace">${t.telefono}</td>
+    <td>
+      <b style="color:var(--green)">$${Number(t.saldo_usdt).toFixed(2)}</b>
+      <button class="btn btn-ghost btn-sm" style="margin-left:6px" onclick="openEditSaldo(${t.id},'${(t.nombre||'').replace(/'/g,"\\'")}',${t.saldo_usdt})">Editar</button>
+    </td>
+    <td>${Number(t.deuda_usd) > 0 ? `<b style="color:var(--yellow)">$${Number(t.deuda_usd).toFixed(2)}</b>` : '<span class="text-muted">$0.00</span>'}</td>
+    <td><span class="badge ${t.estado ? 'badge-green' : 'badge-red'}">${t.estado ? 'Activo' : 'Bloqueado'}</span></td>
+    <td><div class="actions">
+      <button class="btn btn-warning btn-sm" onclick="editTecnico(${t.id})">Editar</button>
+      <button class="btn btn-sm ${t.estado ? 'btn-danger' : 'btn-success'}" onclick="toggleTecnico(${t.id},${t.estado})">${t.estado ? 'Bloquear' : 'Activar'}</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function filterTecnicos() {
+  const q = document.getElementById('search-tecnico').value.toLowerCase();
+  renderTecnicos(_tecnicos.filter(t => (t.nombre||'').toLowerCase().includes(q) || t.telefono.includes(q)));
+}
+
+function editTecnico(id) {
+  const t = _tecnicos.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('modal-tecnico-titulo').textContent = 'Editar Técnico';
+  document.getElementById('tec-id').value       = t.id;
+  document.getElementById('tec-nombre').value   = t.nombre || '';
+  document.getElementById('tec-telefono').value = t.telefono;
+  document.getElementById('tec-saldo').value    = t.saldo_usdt;
+  document.getElementById('tec-saldo-wrap').style.display = 'none'; // saldo se edita por separado
+  openModal('modal-tecnico');
+}
+
+function resetModalTecnico() {
+  document.getElementById('modal-tecnico-titulo').textContent = 'Nuevo Técnico';
+  document.getElementById('tec-id').value       = '';
+  document.getElementById('tec-nombre').value   = '';
+  document.getElementById('tec-telefono').value = '';
+  document.getElementById('tec-saldo').value    = '0';
+  document.getElementById('tec-saldo-wrap').style.display = 'block';
+}
+
+async function saveTecnico() {
+  const id       = document.getElementById('tec-id').value;
+  const nombre   = document.getElementById('tec-nombre').value.trim();
+  const telefono = document.getElementById('tec-telefono').value.trim();
+  const saldo    = document.getElementById('tec-saldo').value;
+  if (!telefono) return toast('El teléfono es obligatorio', false);
+  try {
+    if (id) {
+      await api('/tecnicos/' + id, 'PUT', { nombre, telefono });
+      toast('Técnico actualizado');
+    } else {
+      await api('/tecnicos', 'POST', { nombre, telefono, saldo_usdt: saldo });
+      toast('Técnico registrado');
+    }
+    closeModal('modal-tecnico');
+    resetModalTecnico();
+    loadTecnicos();
+  } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+function openEditSaldo(id, nombre, saldo) {
+  document.getElementById('saldo-tecnico-id').value     = id;
+  document.getElementById('saldo-tecnico-nombre').value = nombre;
+  document.getElementById('saldo-nuevo').value          = saldo;
+  openModal('modal-saldo');
+}
+
+async function saveSaldo() {
+  const id    = document.getElementById('saldo-tecnico-id').value;
+  const saldo = document.getElementById('saldo-nuevo').value;
+  try {
+    await api('/tecnicos/' + id + '/saldo', 'PUT', { saldo_usdt: saldo });
+    closeModal('modal-saldo');
+    toast('Saldo actualizado');
+    loadTecnicos();
+  } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+async function toggleTecnico(id, estadoActual) {
+  if (!confirm(`¿${estadoActual ? 'Bloquear' : 'Activar'} este técnico?`)) return;
+  try {
+    await api('/tecnicos/' + id + '/estado', 'PUT', { estado: !estadoActual });
+    toast(`Técnico ${estadoActual ? 'bloqueado' : 'activado'}`);
+    loadTecnicos();
+  } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+// Limpiar modales al cerrar
+document.getElementById('modal-categoria').addEventListener('click', e => { if(e.target === document.getElementById('modal-categoria')) resetModalCategoria(); });
+document.getElementById('modal-producto').addEventListener('click',  e => { if(e.target === document.getElementById('modal-producto'))  resetModalProducto(); });
+document.getElementById('modal-tecnico').addEventListener('click',   e => { if(e.target === document.getElementById('modal-tecnico'))   resetModalTecnico(); });
+
+// ══════════ PAGOS ══════════
+let _pagosResumen = [];
+
+async function loadPagos() {
+  try {
+    _pagosResumen = await api('/pagos/resumen');
+    const totalPagadoUsd  = _pagosResumen.reduce((s, r) => s + Number(r.total_pagado_usd), 0);
+    const totalPagadoPen  = _pagosResumen.reduce((s, r) => s + Number(r.total_pagado_pen), 0);
+    const totalDeudaUsd   = _pagosResumen.reduce((s, r) => s + Number(r.deuda_usd), 0);
+    const totalPedidos    = _pagosResumen.reduce((s, r) => s + Number(r.total_pedidos), 0);
+
+    document.getElementById('pagos-cards').innerHTML = `
+      <div class="card"><div class="label">Total pedidos</div><div class="value">${totalPedidos}</div></div>
+      <div class="card"><div class="label">Total pagado USD</div><div class="value" style="color:var(--green)">$${totalPagadoUsd.toFixed(2)}</div></div>
+      <div class="card"><div class="label">Total pagado PEN</div><div class="value" style="color:var(--green)">S/${totalPagadoPen.toFixed(2)}</div></div>
+      <div class="card"><div class="label">Deuda pendiente USD</div><div class="value" style="color:var(--yellow)">$${totalDeudaUsd.toFixed(2)}</div></div>
+    `;
+
+    document.getElementById('pagos-resumen-tabla').innerHTML = _pagosResumen.map(r => `<tr>
+      <td>${r.tecnico_nombre || '<span class="text-muted">Sin nombre</span>'}</td>
+      <td class="monospace text-muted">${r.telefono}</td>
+      <td class="text-muted">${r.total_pedidos}</td>
+      <td><span class="badge badge-green">${r.pedidos_pagados}</span></td>
+      <td><span class="badge ${Number(r.pedidos_pendientes) > 0 ? 'badge-yellow' : 'badge-gray'}">${r.pedidos_pendientes}</span></td>
+      <td><b style="color:var(--green)">$${Number(r.total_pagado_usd).toFixed(2)}</b></td>
+      <td><b style="color:var(--green)">S/${Number(r.total_pagado_pen).toFixed(2)}</b></td>
+      <td>${Number(r.deuda_usd) > 0 ? `<b style="color:var(--yellow)">$${Number(r.deuda_usd).toFixed(2)}</b>` : '<span class="text-muted">$0.00</span>'}</td>
+    </tr>`).join('');
+
+    // Llenar select de técnicos
+    const sel = document.getElementById('pagos-filtro-tecnico');
+    sel.innerHTML = '<option value="">Todos los técnicos</option>' +
+      _pagosResumen.map(r => `<option value="${r.tecnico_id}">${r.tecnico_nombre || r.telefono}</option>`).join('');
+
+    await loadPagosDetalle();
+  } catch(e) { toast('Error cargando pagos: ' + e.message, false); }
+}
+
+async function loadPagosDetalle() {
+  try {
+    const tecnico_id  = document.getElementById('pagos-filtro-tecnico').value;
+    const estado_pago = document.getElementById('pagos-filtro-estado').value;
+    const params = new URLSearchParams();
+    if (tecnico_id)  params.set('tecnico_id', tecnico_id);
+    if (estado_pago) params.set('estado_pago', estado_pago);
+    const data = await api('/pagos/detalle?' + params);
+    document.getElementById('pagos-detalle-tabla').innerHTML = data.map(p => {
+      const badge = p.estado_pago === 'descontado' ? 'badge-green' : p.estado_pago === 'pendiente' ? 'badge-yellow' : 'badge-gray';
+      const fecha = p.fecha_pedido || p.created_at || p.fecha || null;
+      const fechaStr = fecha ? new Date(fecha).toLocaleDateString('es-PE') : '—';
+      return `<tr>
+        <td class="text-muted">${p.id}</td>
+        <td>${p.tecnico_nombre || '<span class="text-muted">—</span>'}</td>
+        <td>${p.producto_nombre ? `<span class="badge badge-blue monospace" style="font-size:10px">${p.producto_comando || ''}</span> ${p.producto_nombre}` : '<span class="text-muted">—</span>'}</td>
+        <td>$${Number(p.precio_usd || 0).toFixed(2)}</td>
+        <td>S/${Number(p.precio_pen || 0).toFixed(2)}</td>
+        <td><span class="badge ${badge}">${p.estado_pago || '—'}</span></td>
+        <td class="text-muted">${fechaStr}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="7" class="text-muted" style="text-align:center;padding:20px">Sin registros</td></tr>';
+  } catch(e) { toast('Error cargando detalle: ' + e.message, false); }
+}
+
+// ══════════ ACTIVACIONES ESET ══════════
+async function loadEset() {
+  try {
+    const resumen = await api('/activaciones/eset/resumen');
+    const totalAct  = resumen.reduce((s, r) => s + Number(r.total_activaciones), 0);
+    const totalUsd  = resumen.reduce((s, r) => s + Number(r.total_usd), 0);
+    const totalPen  = resumen.reduce((s, r) => s + Number(r.total_pen), 0);
+    const pagadas   = resumen.reduce((s, r) => s + Number(r.pagadas), 0);
+
+    document.getElementById('eset-cards').innerHTML = `
+      <div class="card"><div class="label">Total activaciones</div><div class="value">${totalAct}</div></div>
+      <div class="card"><div class="label">Pagadas</div><div class="value" style="color:var(--green)">${pagadas}</div></div>
+      <div class="card"><div class="label">Total USD</div><div class="value" style="color:var(--accent)">$${totalUsd.toFixed(2)}</div></div>
+      <div class="card"><div class="label">Total PEN</div><div class="value" style="color:var(--accent)">S/${totalPen.toFixed(2)}</div></div>
+    `;
+
+    document.getElementById('eset-resumen-tabla').innerHTML = resumen.map(r => `<tr>
+      <td>${r.tecnico_nombre || '<span class="text-muted">Sin nombre</span>'}</td>
+      <td><span class="badge badge-blue monospace" style="font-size:10px">${r.producto_comando || ''}</span> ${r.producto_nombre || '—'}</td>
+      <td><b>${r.total_activaciones}</b></td>
+      <td><span class="badge badge-green">${r.pagadas}</span></td>
+      <td><span class="badge ${Number(r.pendientes) > 0 ? 'badge-yellow' : 'badge-gray'}">${r.pendientes}</span></td>
+      <td>$${Number(r.total_usd).toFixed(2)}</td>
+      <td>S/${Number(r.total_pen).toFixed(2)}</td>
+    </tr>`).join('') || '<tr><td colspan="7" class="text-muted" style="text-align:center;padding:20px">Sin activaciones ESET</td></tr>';
+
+    // Técnicos únicos para el filtro
+    const tecnicos = [...new Map(resumen.filter(r => r.tecnico_id).map(r => [r.tecnico_id, r])).values()];
+    const sel = document.getElementById('eset-filtro-tecnico');
+    sel.innerHTML = '<option value="">Todos los técnicos</option>' +
+      tecnicos.map(r => `<option value="${r.tecnico_id}">${r.tecnico_nombre || r.tecnico_id}</option>`).join('');
+
+    await loadEsetDetalle();
+  } catch(e) { toast('Error cargando activaciones ESET: ' + e.message, false); }
+}
+
+async function loadEsetDetalle() {
+  try {
+    const tecnico_id = document.getElementById('eset-filtro-tecnico').value;
+    const estado     = document.getElementById('eset-filtro-estado').value;
+    const params = new URLSearchParams();
+    if (tecnico_id) params.set('tecnico_id', tecnico_id);
+    if (estado)     params.set('estado', estado);
+    const data = await api('/activaciones/eset?' + params);
+    document.getElementById('eset-detalle-tabla').innerHTML = data.map(p => {
+      const badge = p.estado_pago === 'descontado' ? 'badge-green' : p.estado_pago === 'pendiente' ? 'badge-yellow' : 'badge-gray';
+      const fecha = p.fecha_pedido || p.created_at || p.fecha || null;
+      const fechaStr = fecha ? new Date(fecha).toLocaleDateString('es-PE') : '—';
+      return `<tr>
+        <td class="text-muted">${p.id}</td>
+        <td>${p.tecnico_nombre || '<span class="text-muted">—</span>'}</td>
+        <td>${p.producto_nombre ? `<span class="badge badge-blue monospace" style="font-size:10px">${p.producto_comando || ''}</span> ${p.producto_nombre}` : '<span class="text-muted">—</span>'}</td>
+        <td>$${Number(p.precio_usd || 0).toFixed(2)}</td>
+        <td>S/${Number(p.precio_pen || 0).toFixed(2)}</td>
+        <td><span class="badge ${badge}">${p.estado_pago || '—'}</span></td>
+        <td class="text-muted">${fechaStr}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="7" class="text-muted" style="text-align:center;padding:20px">Sin activaciones ESET</td></tr>';
+  } catch(e) { toast('Error cargando detalle ESET: ' + e.message, false); }
+}
+
+// ── Init ──────────────────────────────────
+(async () => {
+  await Promise.all([loadCategorias(), loadProductos()]);
+  loadStock();
+})();
+</script>
+</body>
+</html>

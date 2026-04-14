@@ -1,0 +1,29 @@
+# ── Dependencias ─────────────────────────
+node_modules/
+
+# ── Variables de entorno (contienen credenciales) ────────────
+.env
+.env.local
+.env.production
+
+# ── Logs ─────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── Sistema operativo ─────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Archivos fuera de panel-admin (no subir) ─────────────────
+datos del proyecto.txt
+resumen de conversación.txt
+estructura_base_datos.txt
+prompt_agente.txt
+flujo1_entrega_clave.json
+flujo3_activacion_eset.json
+flujo4_activacion_microsoft.json
+clasificador_mensajes.js
+
+# ── Claude Code ───────────────────────────
+.claude/
