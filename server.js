@@ -126,14 +126,14 @@ app.get('/api/seriales', handler(async (req, res) => {
 
 // IMPORTANTE: bulk debe ir ANTES que /:id para que Express no confunda "bulk" con un id
 app.post('/api/seriales/bulk', handler(async (req, res) => {
-  const { producto_id, claves_texto } = req.body;
+  const { producto_id, claves_texto, caducidad, id_eset } = req.body;
   const claves = claves_texto.split('\n').map(c => c.trim()).filter(c => c.length > 0);
   if (claves.length === 0) return res.status(400).json({ error: 'No hay claves para insertar' });
   let insertadas = 0;
   for (const clave of claves) {
     await pool.query(
-      "INSERT INTO claves_seriales (producto_id, clave, estado) VALUES ($1,$2,'disponible')",
-      [producto_id, clave]
+      "INSERT INTO claves_seriales (producto_id, clave, estado, caducidad, id_eset) VALUES ($1,$2,'disponible',$3,$4)",
+      [producto_id, clave, caducidad || null, id_eset || null]
     );
     insertadas++;
   }

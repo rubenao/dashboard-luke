@@ -221,7 +221,7 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>ID</th><th>Clave</th><th>Producto</th><th>Estado</th><th>Técnico</th><th>Fecha entrega</th><th></th></tr></thead>
+      <thead><tr><th>ID</th><th>Clave</th><th>Producto</th><th>Estado</th><th>Técnico</th><th>Fecha entrega</th><th>Caducidad</th><th>ID ESET</th><th></th></tr></thead>
       <tbody id="tabla-seriales"></tbody>
     </table>
   </div>
@@ -385,10 +385,14 @@
 <div class="overlay" id="modal-serial">
   <div class="modal">
     <h3>Agregar Claves Seriales</h3>
-    <div class="field"><label>Producto</label><select id="serial-producto"></select></div>
+    <div class="field"><label>Producto</label><select id="serial-producto" onchange="toggleEsetFields()"></select></div>
     <div class="field">
       <label>Claves (una por línea)</label>
       <textarea id="serial-claves" placeholder="XXXXX-XXXXX-XXXXX-XXXXX&#10;YYYYY-YYYYY-YYYYY-YYYYY&#10;..."></textarea>
+    </div>
+    <div id="serial-eset-fields" style="display:none">
+      <div class="field"><label>Caducidad</label><input id="serial-caducidad" placeholder="ej: 31/12/2025"></div>
+      <div class="field"><label>ID ESET</label><input id="serial-id-eset" placeholder="ej: EAV-00123456789"></div>
     </div>
     <div id="serial-preview" class="text-muted" style="font-size:12px;margin-bottom:8px"></div>
     <div class="modal-footer">
@@ -734,6 +738,8 @@ async function loadSeriales() {
         <td><span class="badge ${badge}">${s.estado}</span></td>
         <td class="text-muted">${s.tecnico_nombre || '—'}</td>
         <td class="text-muted">${fecha}</td>
+        <td class="text-muted">${s.caducidad || '—'}</td>
+        <td class="monospace text-muted" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.id_eset || ''}">${s.id_eset || '—'}</td>
         <td>${s.estado === 'disponible' ? `<button class="btn btn-danger btn-sm" onclick="deleteSerial(${s.id})">✕</button>` : ''}</td>
       </tr>`;
     }).join('');
@@ -751,16 +757,33 @@ document.getElementById('serial-claves').addEventListener('input', function() {
   document.getElementById('serial-preview').textContent = n > 0 ? `${n} clave(s) detectada(s)` : '';
 });
 
+function toggleEsetFields() {
+  const sel = document.getElementById('serial-producto');
+  const opt = sel.options[sel.selectedIndex];
+  const texto = (opt ? opt.textContent : '').toLowerCase();
+  const mostrar = texto.includes('eset nod 32') || texto.includes('internet security');
+  document.getElementById('serial-eset-fields').style.display = mostrar ? 'block' : 'none';
+  if (!mostrar) {
+    document.getElementById('serial-caducidad').value = '';
+    document.getElementById('serial-id-eset').value = '';
+  }
+}
+
 async function saveSeriales() {
   const producto_id  = document.getElementById('serial-producto').value;
   const claves_texto = document.getElementById('serial-claves').value;
   if (!producto_id)        return toast('Selecciona un producto', false);
   if (!claves_texto.trim()) return toast('Pega al menos una clave', false);
+  const camposEset = document.getElementById('serial-eset-fields').style.display !== 'none';
+  const caducidad  = camposEset ? document.getElementById('serial-caducidad').value.trim() : null;
+  const id_eset    = camposEset ? document.getElementById('serial-id-eset').value.trim()   : null;
   try {
-    const r = await api('/seriales/bulk', 'POST', { producto_id, claves_texto });
+    const r = await api('/seriales/bulk', 'POST', { producto_id, claves_texto, caducidad, id_eset });
     closeModal('modal-serial');
     toast(`${r.insertadas} clave(s) importada(s)`);
     document.getElementById('serial-claves').value = '';
+    document.getElementById('serial-caducidad').value = '';
+    document.getElementById('serial-id-eset').value = '';
     loadSeriales();
     loadStock();
   } catch(e) { toast('Error: ' + e.message, false); }
