@@ -335,7 +335,7 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>ID</th><th>ID Público</th><th>Cliente</th><th>Equipo</th><th>Dispositivo</th><th>Puesto</th><th>N° Activación</th><th>Técnico</th><th>Fecha</th><th>Captura</th></tr></thead>
+      <thead><tr><th>ID</th><th>Serial Key</th><th>ID Público</th><th>Cliente</th><th>Equipo</th><th>Dispositivo</th><th>Puesto</th><th>N° Activación</th><th>Técnico</th><th>Fecha</th><th>Captura</th></tr></thead>
       <tbody id="eset-licencias-tabla"></tbody>
     </table>
   </div>
@@ -1066,11 +1066,12 @@ async function loadLicenciasEset() {
 function filtrarLicencias() {
   const q = (document.getElementById('eset-lic-buscar')?.value || '').toLowerCase();
   const lista = _licenciasEset.filter(l =>
-    (l.nombre_cliente   || '').toLowerCase().includes(q) ||
-    (l.nombre_equipo    || '').toLowerCase().includes(q) ||
+    (l.nombre_cliente     || '').toLowerCase().includes(q) ||
+    (l.nombre_equipo      || '').toLowerCase().includes(q) ||
     (l.nombre_dispositivo || '').toLowerCase().includes(q) ||
-    (l.id_publico       || '').toLowerCase().includes(q) ||
-    (l.nombre_puesto    || '').toLowerCase().includes(q)
+    (l.id_publico         || '').toLowerCase().includes(q) ||
+    (l.nombre_puesto      || '').toLowerCase().includes(q) ||
+    (l.serial_key         || '').toLowerCase().includes(q)
   );
   const vacio = '<tr><td colspan="10" class="text-muted" style="text-align:center;padding:20px">Sin licencias activadas</td></tr>';
   document.getElementById('eset-licencias-tabla').innerHTML = lista.map(l => {
@@ -1080,6 +1081,7 @@ function filtrarLicencias() {
       : '<span class="text-muted">—</span>';
     return `<tr>
       <td class="text-muted">${l.id}</td>
+      <td class="monospace" style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.serial_key || ''}">${l.serial_key || '—'}</td>
       <td class="monospace" style="font-size:12px">${l.id_publico || '—'}</td>
       <td>${l.nombre_cliente || '—'}</td>
       <td>${l.nombre_equipo || '—'}</td>
