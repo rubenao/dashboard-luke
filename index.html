@@ -722,7 +722,17 @@ async function deleteProducto(id) {
 // ══════════ SERIALES ══════════
 async function loadSeriales() {
   try {
-    const pid = document.getElementById('filtro-producto').value;
+    // Si aún no se cargaron los productos, traerlos para poblar el filtro
+    if (_productos.length === 0) {
+      _productos = await api('/productos');
+    }
+    const sel = document.getElementById('filtro-producto');
+    const valorActual = sel.value;
+    sel.innerHTML = '<option value="">Todos los productos</option>' +
+      _productos.map(p => `<option value="${p.id}">${p.comando} - ${p.nombre}</option>`).join('');
+    sel.value = valorActual; // mantener selección si ya había una
+
+    const pid = sel.value;
     const est = document.getElementById('filtro-estado').value;
     const params = new URLSearchParams();
     if (pid) params.set('producto_id', pid);
