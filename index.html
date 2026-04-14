@@ -191,11 +191,12 @@
 <div class="page" id="page-productos">
   <div class="toolbar">
     <h2>Productos</h2>
+    <input id="filtro-productos-buscar" class="search-input" type="text" placeholder="Buscar por comando o nombre..." oninput="renderProductos()" style="max-width:280px;">
     <button class="btn btn-primary" onclick="openModal('modal-producto')">+ Nuevo producto</button>
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Comando</th><th>Nombre</th><th>Categoría</th><th>Precio PEN</th><th>Precio USD</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <thead><tr><th onclick="sortProductos()" style="cursor:pointer;user-select:none;" id="th-comando">Comando <span id="sort-icon">↕</span></th><th>Nombre</th><th>Categoría</th><th>Precio PEN</th><th>Precio USD</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead>
       <tbody id="tabla-productos"></tbody>
     </table>
   </div>
@@ -575,6 +576,52 @@ async function deleteCategoria(id) {
 }
 
 // ══════════ PRODUCTOS ══════════
+let _productosSortDir = null; // null | 'asc' | 'desc'
+
+function sortProductos() {
+  if (_productosSortDir === 'asc') {
+    _productosSortDir = 'desc';
+  } else {
+    _productosSortDir = 'asc';
+  }
+  const icon = document.getElementById('sort-icon');
+  icon.textContent = _productosSortDir === 'asc' ? '↑' : '↓';
+  renderProductos();
+}
+
+function renderProductos() {
+  const q = (document.getElementById('filtro-productos-buscar')?.value || '').toLowerCase();
+  let lista = _productos.filter(p =>
+    (p.comando || '').toLowerCase().includes(q) ||
+    (p.nombre  || '').toLowerCase().includes(q)
+  );
+  if (_productosSortDir) {
+    lista.sort((a, b) => {
+      const ca = (a.comando || '').toLowerCase();
+      const cb = (b.comando || '').toLowerCase();
+      return _productosSortDir === 'asc' ? ca.localeCompare(cb) : cb.localeCompare(ca);
+    });
+  }
+  document.getElementById('tabla-productos').innerHTML = lista.map(p => {
+    const stk    = Number(p.stock);
+    const aAlert = Number(p.alerta_stock_en);
+    const badge  = stk === 0 ? 'badge-red' : stk <= aAlert ? 'badge-yellow' : 'badge-green';
+    return `<tr>
+        <td><span class="badge badge-blue monospace">${p.comando}</span></td>
+        <td>${p.nombre}</td>
+        <td class="text-muted">${p.categoria_nombre || '—'}</td>
+        <td>S/ ${Number(p.precio_pen).toFixed(2)}</td>
+        <td>$ ${Number(p.precio_usd).toFixed(2)}</td>
+        <td><span class="badge ${badge}">${stk} claves</span></td>
+        <td><span class="badge ${p.activo ? 'badge-green' : 'badge-gray'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
+        <td><div class="actions">
+          <button class="btn btn-warning btn-sm" onclick="editProducto(${p.id})">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteProducto(${p.id})">Eliminar</button>
+        </div></td>
+      </tr>`;
+  }).join('');
+}
+
 async function loadProductos() {
   try {
     _productos = await api('/productos');
