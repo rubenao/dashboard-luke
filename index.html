@@ -196,7 +196,7 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th onclick="sortProductos()" style="cursor:pointer;user-select:none;" id="th-comando">Comando <span id="sort-icon">↕</span></th><th>Nombre</th><th>Categoría</th><th>Precio PEN</th><th>Precio USD</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <thead><tr><th onclick="sortProductos()" style="cursor:pointer;user-select:none;" id="th-comando">Comando <span id="sort-icon">↕</span></th><th>Nombre</th><th>Categoría</th><th>Precio PEN</th><th>Precio USD</th><th>Stock</th><th>Estado</th><th>Link Instalador</th><th>Acciones</th></tr></thead>
       <tbody id="tabla-productos"></tbody>
     </table>
   </div>
@@ -381,6 +381,7 @@
       <div class="field"><label>Alerta de stock en (usos)</label><input id="prod-alerta" type="number" value="10"></div>
       <div class="field"><label>Usos máximos por serial</label><input id="prod-usos" type="number" value="1" min="1" title="Ej: Office Phone Key = 50, ESET = 25, otros = 1"></div>
     </div>
+    <div class="field"><label>Link Instalador (URL)</label><input id="prod-link-instalador" placeholder="https://..."></div>
     <div class="field" id="prod-activo-wrap" style="display:none">
       <label>Estado</label>
       <select id="prod-activo">
@@ -632,6 +633,7 @@ function renderProductos() {
         <td>$ ${Number(p.precio_usd).toFixed(2)}</td>
         <td><span class="badge ${badge}">${stk} claves</span></td>
         <td><span class="badge ${p.activo ? 'badge-green' : 'badge-gray'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
+        <td>${p.link_instalador ? `<a href="${p.link_instalador}" target="_blank" class="btn btn-ghost btn-sm">🔗 Ver</a>` : '<span class="text-muted">—</span>'}</td>
         <td><div class="actions">
           <button class="btn btn-warning btn-sm" onclick="editProducto(${p.id})">Editar</button>
           <button class="btn btn-danger btn-sm" onclick="deleteProducto(${p.id})">Eliminar</button>
@@ -655,6 +657,7 @@ async function loadProductos() {
         <td>$ ${Number(p.precio_usd).toFixed(2)}</td>
         <td><span class="badge ${badge}">${stk} claves</span></td>
         <td><span class="badge ${p.activo ? 'badge-green' : 'badge-gray'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
+        <td>${p.link_instalador ? `<a href="${p.link_instalador}" target="_blank" class="btn btn-ghost btn-sm">🔗 Ver</a>` : '<span class="text-muted">—</span>'}</td>
         <td><div class="actions">
           <button class="btn btn-warning btn-sm" onclick="editProducto(${p.id})">Editar</button>
           <button class="btn btn-danger btn-sm" onclick="deleteProducto(${p.id})">Eliminar</button>
@@ -684,6 +687,7 @@ function editProducto(id) {
   document.getElementById('prod-alerta').value  = p.alerta_stock_en;
   document.getElementById('prod-usos').value    = p.usos_maximos || 1;
   document.getElementById('prod-activo').value  = p.activo ? 'true' : 'false';
+  document.getElementById('prod-link-instalador').value = p.link_instalador || '';
   document.getElementById('prod-activo-wrap').style.display = 'block';
   document.getElementById('modal-producto').classList.add('open');
 }
@@ -697,6 +701,7 @@ function resetModalProducto() {
   document.getElementById('prod-usd').value     = '';
   document.getElementById('prod-alerta').value  = '10';
   document.getElementById('prod-usos').value    = '1';
+  document.getElementById('prod-link-instalador').value = '';
   document.getElementById('prod-activo-wrap').style.display = 'none';
 }
 
@@ -708,9 +713,10 @@ async function saveProducto() {
     nombre:          document.getElementById('prod-nombre').value.trim(),
     precio_pen:      document.getElementById('prod-pen').value,
     precio_usd:      document.getElementById('prod-usd').value,
-    alerta_stock_en: document.getElementById('prod-alerta').value || 10,
-    usos_maximos:    document.getElementById('prod-usos').value || 1,
-    activo:          document.getElementById('prod-activo').value === 'true',
+    alerta_stock_en:  document.getElementById('prod-alerta').value || 10,
+    usos_maximos:     document.getElementById('prod-usos').value || 1,
+    activo:           document.getElementById('prod-activo').value === 'true',
+    link_instalador:  document.getElementById('prod-link-instalador').value.trim() || null,
   };
   if (!body.comando || !body.nombre) return toast('Completa comando y nombre', false);
   try {

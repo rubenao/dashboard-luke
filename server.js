@@ -82,19 +82,19 @@ app.get('/api/productos', handler(async (req, res) => {
 }));
 
 app.post('/api/productos', handler(async (req, res) => {
-  const { comando, categoria_id, nombre, precio_pen, precio_usd, alerta_stock_en, usos_maximos } = req.body;
+  const { comando, categoria_id, nombre, precio_pen, precio_usd, alerta_stock_en, usos_maximos, link_instalador } = req.body;
   const { rows } = await pool.query(
-    'INSERT INTO productos (comando, categoria_id, nombre, precio_pen, precio_usd, alerta_stock_en, usos_maximos) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-    [comando, categoria_id || null, nombre, precio_pen || 0, precio_usd || 0, alerta_stock_en || 10, usos_maximos || 1]
+    'INSERT INTO productos (comando, categoria_id, nombre, precio_pen, precio_usd, alerta_stock_en, usos_maximos, link_instalador) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+    [comando, categoria_id || null, nombre, precio_pen || 0, precio_usd || 0, alerta_stock_en || 10, usos_maximos || 1, link_instalador || null]
   );
   res.json(rows[0]);
 }));
 
 app.put('/api/productos/:id', handler(async (req, res) => {
-  const { comando, categoria_id, nombre, precio_pen, precio_usd, alerta_stock_en, usos_maximos, activo } = req.body;
+  const { comando, categoria_id, nombre, precio_pen, precio_usd, alerta_stock_en, usos_maximos, activo, link_instalador } = req.body;
   const { rows } = await pool.query(
-    'UPDATE productos SET comando=$1, categoria_id=$2, nombre=$3, precio_pen=$4, precio_usd=$5, alerta_stock_en=$6, usos_maximos=$7, activo=$8 WHERE id=$9 RETURNING *',
-    [comando, categoria_id || null, nombre, precio_pen || 0, precio_usd || 0, alerta_stock_en || 10, usos_maximos || 1, activo, req.params.id]
+    'UPDATE productos SET comando=$1, categoria_id=$2, nombre=$3, precio_pen=$4, precio_usd=$5, alerta_stock_en=$6, usos_maximos=$7, activo=$8, link_instalador=$9 WHERE id=$10 RETURNING *',
+    [comando, categoria_id || null, nombre, precio_pen || 0, precio_usd || 0, alerta_stock_en || 10, usos_maximos || 1, activo, link_instalador || null, req.params.id]
   );
   res.json(rows[0]);
 }));
