@@ -98,6 +98,12 @@
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 
+  /* ── Period filter ── */
+  .period-btns { display: flex; gap: 4px; }
+  .period-btn { padding: 7px 13px; border-radius: 7px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; cursor: pointer; transition: .15s; white-space: nowrap; }
+  .period-btn:hover { color: var(--text); border-color: var(--text); }
+  .period-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
   /* ── Search ── */
   .search-input { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 8px 12px; color: var(--text); font-size: 13px; outline: none; }
   .search-input:focus { border-color: var(--accent); }
@@ -136,6 +142,8 @@
     .modal-footer .btn { width: 100%; text-align: center; }
     .toast { left: 12px; right: 12px; bottom: 16px; max-width: unset; }
     .actions { flex-wrap: wrap; }
+    .period-btns { width: 100%; justify-content: space-between; }
+    .period-btn { flex: 1; text-align: center; padding: 7px 6px; font-size: 11px; }
   }
 </style>
 </head>
@@ -250,6 +258,13 @@
   <div class="toolbar">
     <h2>Pagos por Técnico</h2>
     <div class="toolbar-right">
+      <div class="period-btns">
+        <button class="period-btn" data-period="day"   onclick="setPagosPeriod('day')">Hoy</button>
+        <button class="period-btn" data-period="week"  onclick="setPagosPeriod('week')">Semana</button>
+        <button class="period-btn" data-period="month" onclick="setPagosPeriod('month')">Mes</button>
+        <button class="period-btn" data-period="year"  onclick="setPagosPeriod('year')">Año</button>
+        <button class="period-btn active" data-period="" onclick="setPagosPeriod('')">Todo</button>
+      </div>
       <select id="pagos-filtro-estado" class="search-input" onchange="loadPagosDetalle()">
         <option value="">Todos los estados</option>
         <option value="descontado">Descontados</option>
@@ -258,6 +273,7 @@
       <button class="btn btn-ghost" onclick="loadPagos()">↻ Actualizar</button>
     </div>
   </div>
+  <div id="pagos-periodo-label" style="padding: 0 0 14px; font-size:12px; color:var(--muted)"></div>
   <div class="cards" id="pagos-cards"></div>
 
   <!-- Resumen por técnico -->
@@ -274,9 +290,11 @@
   <!-- Detalle de pagos -->
   <div class="toolbar">
     <h2 style="font-size:14px;color:var(--muted)">Detalle de pedidos</h2>
-    <select id="pagos-filtro-tecnico" class="search-input" onchange="loadPagosDetalle()">
-      <option value="">Todos los técnicos</option>
-    </select>
+    <div class="toolbar-right">
+      <select id="pagos-filtro-tecnico" class="search-input" onchange="loadPagosDetalle()">
+        <option value="">Todos los técnicos</option>
+      </select>
+    </div>
   </div>
   <div class="table-wrap">
     <table>
@@ -937,10 +955,56 @@ document.getElementById('modal-tecnico').addEventListener('click',   e => { if(e
 
 // ══════════ PAGOS ══════════
 let _pagosResumen = [];
+let _pagosPeriod  = '';
+
+function getPagosDates(period) {
+  const now   = new Date();
+  const pad   = n => String(n).padStart(2, '0');
+  const fmt   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  if (!period) return {};
+  let desde, hasta;
+  if (period === 'day') {
+    desde = hasta = fmt(now);
+  } else if (period === 'week') {
+    const day = now.getDay(); // 0=Sun
+    const diff = (day === 0 ? -6 : 1 - day);
+    const mon = new Date(now); mon.setDate(now.getDate() + diff);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    desde = fmt(mon); hasta = fmt(sun);
+  } else if (period === 'month') {
+    desde = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
+    hasta = fmt(new Date(now.getFullYear(), now.getMonth()+1, 0));
+  } else if (period === 'year') {
+    desde = `${now.getFullYear()}-01-01`;
+    hasta = `${now.getFullYear()}-12-31`;
+  }
+  return { desde, hasta };
+}
+
+function getPeriodLabel(period) {
+  const { desde, hasta } = getPagosDates(period);
+  if (!desde) return '';
+  const labels = { day: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año' };
+  return `${labels[period]}: ${desde}${desde !== hasta ? ' → ' + hasta : ''}`;
+}
+
+function setPagosPeriod(period) {
+  _pagosPeriod = period;
+  document.querySelectorAll('#page-pagos .period-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.period === period);
+  });
+  const label = getPeriodLabel(period);
+  document.getElementById('pagos-periodo-label').textContent = label;
+  loadPagos();
+}
 
 async function loadPagos() {
   try {
-    _pagosResumen = await api('/pagos/resumen');
+    const { desde, hasta } = getPagosDates(_pagosPeriod);
+    const params = new URLSearchParams();
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    _pagosResumen = await api('/pagos/resumen?' + params);
     const totalPagadoUsd  = _pagosResumen.reduce((s, r) => s + Number(r.total_pagado_usd), 0);
     const totalPagadoPen  = _pagosResumen.reduce((s, r) => s + Number(r.total_pagado_pen), 0);
     const totalDeudaUsd   = _pagosResumen.reduce((s, r) => s + Number(r.deuda_usd), 0);
@@ -962,12 +1026,14 @@ async function loadPagos() {
       <td><b style="color:var(--green)">$${Number(r.total_pagado_usd).toFixed(2)}</b></td>
       <td><b style="color:var(--green)">S/${Number(r.total_pagado_pen).toFixed(2)}</b></td>
       <td>${Number(r.deuda_usd) > 0 ? `<b style="color:var(--yellow)">$${Number(r.deuda_usd).toFixed(2)}</b>` : '<span class="text-muted">$0.00</span>'}</td>
-    </tr>`).join('');
+    </tr>`).join('') || '<tr><td colspan="8" class="text-muted" style="text-align:center;padding:20px">Sin registros para el período</td></tr>';
 
     // Llenar select de técnicos
     const sel = document.getElementById('pagos-filtro-tecnico');
+    const prevTec = sel.value;
     sel.innerHTML = '<option value="">Todos los técnicos</option>' +
       _pagosResumen.map(r => `<option value="${r.tecnico_id}">${r.tecnico_nombre || r.telefono}</option>`).join('');
+    sel.value = prevTec;
 
     await loadPagosDetalle();
   } catch(e) { toast('Error cargando pagos: ' + e.message, false); }
@@ -977,9 +1043,12 @@ async function loadPagosDetalle() {
   try {
     const tecnico_id  = document.getElementById('pagos-filtro-tecnico').value;
     const estado_pago = document.getElementById('pagos-filtro-estado').value;
+    const { desde, hasta } = getPagosDates(_pagosPeriod);
     const params = new URLSearchParams();
     if (tecnico_id)  params.set('tecnico_id', tecnico_id);
     if (estado_pago) params.set('estado_pago', estado_pago);
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
     const data = await api('/pagos/detalle?' + params);
     document.getElementById('pagos-detalle-tabla').innerHTML = data.map(p => {
       const badge = p.estado_pago === 'descontado' ? 'badge-green' : p.estado_pago === 'pendiente' ? 'badge-yellow' : 'badge-gray';

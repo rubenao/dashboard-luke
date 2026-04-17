@@ -229,30 +229,37 @@ app.get('/api/stock', handler(async (req, res) => {
 // PAGOS (pedidos agrupados por técnico)
 // ════════════════════════════════════════════
 app.get('/api/pagos/resumen', handler(async (req, res) => {
+  const { desde, hasta } = req.query;
+  const params = [];
+  let where = 'WHERE 1=1';
+  if (desde) { params.push(desde); where += ` AND ( p.fecha_pedido AT TIME ZONE 'America/Lima' )::date >= $${params.length}::date`; }
+  if (hasta) { params.push(hasta); where += ` AND ( p.fecha_pedido AT TIME ZONE 'America/Lima' )::date <= $${params.length}::date`; }
+
   const { rows } = await pool.query(`
     SELECT
       t.id AS tecnico_id,
       t.nombre AS tecnico_nombre,
       t.telefono,
-      COUNT(p.id)                                                        AS total_pedidos,
-      COUNT(p.id) FILTER (WHERE p.estado_pago = 'descontado')               AS pedidos_pagados,
-      COUNT(p.id) FILTER (WHERE p.estado_pago = 'pendiente')               AS pedidos_pendientes,
-      COALESCE(SUM(p.precio_usd) FILTER (WHERE p.estado_pago = 'descontado'), 0)    AS total_pagado_usd,
-      COALESCE(SUM(p.precio_pen) FILTER (WHERE p.estado_pago = 'descontado'), 0)    AS total_pagado_pen,
-      COALESCE(SUM(p.precio_usd) FILTER (WHERE p.estado_pago = 'pendiente'), 0)     AS deuda_usd,
-      COALESCE(SUM(p.precio_pen) FILTER (WHERE p.estado_pago = 'pendiente'), 0)     AS deuda_pen,
+      COUNT(p.id)                                                                AS total_pedidos,
+      COUNT(p.id) FILTER (WHERE p.estado_pago = 'descontado')                    AS pedidos_pagados,
+      COUNT(p.id) FILTER (WHERE p.estado_pago = 'pendiente')                     AS pedidos_pendientes,
+      COALESCE(SUM(p.precio_usd) FILTER (WHERE p.estado_pago = 'descontado'), 0) AS total_pagado_usd,
+      COALESCE(SUM(p.precio_pen) FILTER (WHERE p.estado_pago = 'descontado'), 0) AS total_pagado_pen,
+      COALESCE(SUM(p.precio_usd) FILTER (WHERE p.estado_pago = 'pendiente'), 0)  AS deuda_usd,
+      COALESCE(SUM(p.precio_pen) FILTER (WHERE p.estado_pago = 'pendiente'), 0)  AS deuda_pen,
       COALESCE(SUM(p.precio_usd), 0) AS total_usd,
       COALESCE(SUM(p.precio_pen), 0) AS total_pen
     FROM tecnicos t
-    LEFT JOIN pedidos p ON p.tecnico_id = t.id
+    JOIN pedidos p ON p.tecnico_id = t.id
+    ${where}
     GROUP BY t.id, t.nombre, t.telefono
     ORDER BY total_pagado_usd DESC
-  `);
+  `, params);
   res.json(rows);
 }));
 
 app.get('/api/pagos/detalle', handler(async (req, res) => {
-  const { tecnico_id, estado_pago } = req.query;
+  const { tecnico_id, estado_pago, desde, hasta } = req.query;
   let query = `
     SELECT
       p.*,
@@ -266,8 +273,10 @@ app.get('/api/pagos/detalle', handler(async (req, res) => {
     WHERE 1=1
   `;
   const params = [];
-  if (tecnico_id)   { params.push(tecnico_id);   query += ` AND p.tecnico_id = $${params.length}`; }
-  if (estado_pago)  { params.push(estado_pago);  query += ` AND p.estado_pago = $${params.length}`; }
+  if (tecnico_id)  { params.push(tecnico_id);  query += ` AND p.tecnico_id = $${params.length}`; }
+  if (estado_pago) { params.push(estado_pago); query += ` AND p.estado_pago = $${params.length}`; }
+  if (desde)       { params.push(desde);       query += ` AND (p.fecha_pedido AT TIME ZONE 'America/Lima')::date >= $${params.length}::date`; }
+  if (hasta)       { params.push(hasta);       query += ` AND (p.fecha_pedido AT TIME ZONE 'America/Lima')::date <= $${params.length}::date`; }
   query += ' ORDER BY p.id DESC LIMIT 500';
   const { rows } = await pool.query(query, params);
   res.json(rows);
