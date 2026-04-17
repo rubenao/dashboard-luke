@@ -239,7 +239,7 @@
   <div class="cards" id="tecnico-cards"></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Nombre</th><th>Teléfono</th><th>Saldo USDT</th><th>Deuda USD</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <thead><tr><th>Nombre</th><th>Teléfono</th><th>Saldo S/.</th><th>Deuda USD</th><th>Estado</th><th>Acciones</th></tr></thead>
       <tbody id="tabla-tecnicos"></tbody>
     </table>
   </div>
@@ -845,7 +845,7 @@ function renderTecnicos(lista) {
     <td>${t.nombre || '<span class="text-muted">Sin nombre</span>'}</td>
     <td class="monospace">${t.telefono}</td>
     <td>
-      <b style="color:var(--green)">$${Number(t.saldo_usdt).toFixed(2)}</b>
+      <b style="color:var(--green)">S/${Number(t.saldo_usdt).toFixed(2)}</b>
       <button class="btn btn-ghost btn-sm" style="margin-left:6px" onclick="openEditSaldo(${t.id},'${(t.nombre||'').replace(/'/g,"\\'")}',${t.saldo_usdt})">Editar</button>
     </td>
     <td>${Number(t.deuda_usd) > 0 ? `<b style="color:var(--yellow)">$${Number(t.deuda_usd).toFixed(2)}</b>` : '<span class="text-muted">$0.00</span>'}</td>
