@@ -264,6 +264,12 @@
         <button class="period-btn" data-period="month" onclick="setPagosPeriod('month')">Mes</button>
         <button class="period-btn" data-period="year"  onclick="setPagosPeriod('year')">Año</button>
         <button class="period-btn active" data-period="" onclick="setPagosPeriod('')">Todo</button>
+        <button class="period-btn" data-period="custom" onclick="setPagosPeriod('custom')">Personalizado</button>
+      </div>
+      <div id="pagos-custom-range" style="display:none;display:none;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="date" id="pagos-desde" class="search-input" style="width:auto" onchange="onCustomDateChange()">
+        <span style="color:var(--muted);font-size:12px">→</span>
+        <input type="date" id="pagos-hasta" class="search-input" style="width:auto" onchange="onCustomDateChange()">
       </div>
       <select id="pagos-filtro-estado" class="search-input" onchange="loadPagosDetalle()">
         <option value="">Todos los estados</option>
@@ -294,11 +300,12 @@
       <select id="pagos-filtro-tecnico" class="search-input" onchange="loadPagosDetalle()">
         <option value="">Todos los técnicos</option>
       </select>
+      <input id="pagos-buscar-telefono" class="search-input" placeholder="Buscar por teléfono..." oninput="filtrarPagosDetalle()" style="max-width:200px;">
     </div>
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>ID</th><th>Técnico</th><th>Producto</th><th>Precio USD</th><th>Precio PEN</th><th>Estado</th><th>Fecha</th></tr></thead>
+      <thead><tr><th>ID</th><th>Técnico</th><th>Teléfono</th><th>Producto</th><th>Precio USD</th><th>Precio PEN</th><th>Estado</th><th>Fecha</th></tr></thead>
       <tbody id="pagos-detalle-tabla"></tbody>
     </table>
   </div>
@@ -962,6 +969,12 @@ function getPagosDates(period) {
   const pad   = n => String(n).padStart(2, '0');
   const fmt   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   if (!period) return {};
+  if (period === 'custom') {
+    return {
+      desde: document.getElementById('pagos-desde')?.value || undefined,
+      hasta: document.getElementById('pagos-hasta')?.value || undefined,
+    };
+  }
   let desde, hasta;
   if (period === 'day') {
     desde = hasta = fmt(now);
@@ -993,9 +1006,21 @@ function setPagosPeriod(period) {
   document.querySelectorAll('#page-pagos .period-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.period === period);
   });
+  const customRange = document.getElementById('pagos-custom-range');
+  customRange.style.display = period === 'custom' ? 'flex' : 'none';
   const label = getPeriodLabel(period);
   document.getElementById('pagos-periodo-label').textContent = label;
-  loadPagos();
+  if (period !== 'custom') loadPagos();
+}
+
+function onCustomDateChange() {
+  const desde = document.getElementById('pagos-desde').value;
+  const hasta = document.getElementById('pagos-hasta').value;
+  if (desde && hasta) {
+    const label = `Personalizado: ${desde} → ${hasta}`;
+    document.getElementById('pagos-periodo-label').textContent = label;
+    loadPagos();
+  }
 }
 
 async function loadPagos() {
@@ -1039,6 +1064,8 @@ async function loadPagos() {
   } catch(e) { toast('Error cargando pagos: ' + e.message, false); }
 }
 
+let _pagosDetalle = [];
+
 async function loadPagosDetalle() {
   try {
     const tecnico_id  = document.getElementById('pagos-filtro-tecnico').value;
@@ -1049,22 +1076,29 @@ async function loadPagosDetalle() {
     if (estado_pago) params.set('estado_pago', estado_pago);
     if (desde) params.set('desde', desde);
     if (hasta) params.set('hasta', hasta);
-    const data = await api('/pagos/detalle?' + params);
-    document.getElementById('pagos-detalle-tabla').innerHTML = data.map(p => {
-      const badge = p.estado_pago === 'descontado' ? 'badge-green' : p.estado_pago === 'pendiente' ? 'badge-yellow' : 'badge-gray';
-      const fecha = p.fecha_pedido || p.created_at || p.fecha || null;
-      const fechaStr = fecha ? new Date(fecha).toLocaleDateString('es-PE') : '—';
-      return `<tr>
-        <td class="text-muted">${p.id}</td>
-        <td>${p.tecnico_nombre || '<span class="text-muted">—</span>'}</td>
-        <td>${p.producto_nombre ? `<span class="badge badge-blue monospace" style="font-size:10px">${p.producto_comando || ''}</span> ${p.producto_nombre}` : '<span class="text-muted">—</span>'}</td>
-        <td>$${Number(p.precio_usd || 0).toFixed(2)}</td>
-        <td>S/${Number(p.precio_pen || 0).toFixed(2)}</td>
-        <td><span class="badge ${badge}">${p.estado_pago || '—'}</span></td>
-        <td class="text-muted">${fechaStr}</td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="7" class="text-muted" style="text-align:center;padding:20px">Sin registros</td></tr>';
+    _pagosDetalle = await api('/pagos/detalle?' + params);
+    filtrarPagosDetalle();
   } catch(e) { toast('Error cargando detalle: ' + e.message, false); }
+}
+
+function filtrarPagosDetalle() {
+  const q = (document.getElementById('pagos-buscar-telefono')?.value || '').toLowerCase();
+  const lista = q ? _pagosDetalle.filter(p => (p.tecnico_telefono || '').includes(q)) : _pagosDetalle;
+  document.getElementById('pagos-detalle-tabla').innerHTML = lista.map(p => {
+    const badge = p.estado_pago === 'descontado' ? 'badge-green' : p.estado_pago === 'pendiente' ? 'badge-yellow' : 'badge-gray';
+    const fecha = p.fecha_pedido || p.created_at || p.fecha || null;
+    const fechaStr = fecha ? new Date(fecha).toLocaleDateString('es-PE') : '—';
+    return `<tr>
+      <td class="text-muted">${p.id}</td>
+      <td>${p.tecnico_nombre || '<span class="text-muted">—</span>'}</td>
+      <td class="monospace text-muted">${p.tecnico_telefono || '—'}</td>
+      <td>${p.producto_nombre ? `<span class="badge badge-blue monospace" style="font-size:10px">${p.producto_comando || ''}</span> ${p.producto_nombre}` : '<span class="text-muted">—</span>'}</td>
+      <td>$${Number(p.precio_usd || 0).toFixed(2)}</td>
+      <td>S/${Number(p.precio_pen || 0).toFixed(2)}</td>
+      <td><span class="badge ${badge}">${p.estado_pago || '—'}</span></td>
+      <td class="text-muted">${fechaStr}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" class="text-muted" style="text-align:center;padding:20px">Sin registros</td></tr>';
 }
 
 // ══════════ ACTIVACIONES ESET ══════════
