@@ -3,10 +3,33 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'cambiar-este-secreto-en-produccion';
+const JWT_EXPIRES = '8h';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Archivos estáticos públicos: solo login.html y sus assets
+app.use('/login.html', express.static(path.join(__dirname, 'login.html')));
+
+// Middleware de autenticación JWT
+function requireAuth(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    req.user = jwt.verify(auth.slice(7), JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token inválido o expirado' });
+  }
+}
+
+// Sirve index.html solo si tiene token válido (verificado en cliente)
+// El panel protege sus llamadas API con requireAuth
 app.use(express.static(path.join(__dirname)));
 
 const pool = new Pool({
@@ -32,14 +55,77 @@ const handler = fn => async (req, res) => {
 };
 
 // ════════════════════════════════════════════
+// AUTH
+// ════════════════════════════════════════════
+app.post('/api/auth/login', handler(async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Credenciales requeridas' });
+  const { rows } = await pool.query(
+    'SELECT * FROM admin_usuarios WHERE username=$1 AND activo=true', [username]
+  );
+  if (!rows.length) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+  const user = rows[0];
+  const ok = await bcrypt.compare(password, user.password);
+  if (!ok) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+  await pool.query('UPDATE admin_usuarios SET last_login=NOW() WHERE id=$1', [user.id]);
+  const token = jwt.sign({ id: user.id, username: user.username, nombre: user.nombre }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  res.json({ token, nombre: user.nombre, username: user.username });
+}));
+
+app.get('/api/auth/me', requireAuth, handler(async (req, res) => {
+  const { rows } = await pool.query('SELECT id, username, nombre, last_login FROM admin_usuarios WHERE id=$1', [req.user.id]);
+  res.json(rows[0] || {});
+}));
+
+// CRUD usuarios (solo admins autenticados)
+app.get('/api/usuarios', requireAuth, handler(async (req, res) => {
+  const { rows } = await pool.query('SELECT id, username, nombre, activo, created_at, last_login FROM admin_usuarios ORDER BY id');
+  res.json(rows);
+}));
+
+app.post('/api/usuarios', requireAuth, handler(async (req, res) => {
+  const { username, password, nombre } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'username y password requeridos' });
+  const hash = await bcrypt.hash(password, 10);
+  const { rows } = await pool.query(
+    'INSERT INTO admin_usuarios (username, password, nombre) VALUES ($1,$2,$3) RETURNING id, username, nombre, activo, created_at',
+    [username, hash, nombre || null]
+  );
+  res.json(rows[0]);
+}));
+
+app.put('/api/usuarios/:id', requireAuth, handler(async (req, res) => {
+  const { nombre, activo, password } = req.body;
+  if (password) {
+    const hash = await bcrypt.hash(password, 10);
+    const { rows } = await pool.query(
+      'UPDATE admin_usuarios SET nombre=$1, activo=$2, password=$3 WHERE id=$4 RETURNING id, username, nombre, activo',
+      [nombre || null, activo, hash, req.params.id]
+    );
+    return res.json(rows[0]);
+  }
+  const { rows } = await pool.query(
+    'UPDATE admin_usuarios SET nombre=$1, activo=$2 WHERE id=$3 RETURNING id, username, nombre, activo',
+    [nombre || null, activo, req.params.id]
+  );
+  res.json(rows[0]);
+}));
+
+app.delete('/api/usuarios/:id', requireAuth, handler(async (req, res) => {
+  if (String(req.params.id) === String(req.user.id)) return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
+  await pool.query('DELETE FROM admin_usuarios WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+}));
+
+// ════════════════════════════════════════════
 // CATEGORÍAS
 // ════════════════════════════════════════════
-app.get('/api/categorias', handler(async (req, res) => {
+app.get('/api/categorias', requireAuth, handler(async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM categorias_productos ORDER BY id');
   res.json(rows);
 }));
 
-app.post('/api/categorias', handler(async (req, res) => {
+app.post('/api/categorias', requireAuth, handler(async (req, res) => {
   const { comando, nombre, descripcion } = req.body;
   const { rows } = await pool.query(
     'INSERT INTO categorias_productos (comando, nombre, descripcion) VALUES ($1, $2, $3) RETURNING *',
@@ -48,7 +134,7 @@ app.post('/api/categorias', handler(async (req, res) => {
   res.json(rows[0]);
 }));
 
-app.put('/api/categorias/:id', handler(async (req, res) => {
+app.put('/api/categorias/:id', requireAuth, handler(async (req, res) => {
   const { comando, nombre, descripcion, activo } = req.body;
   const { rows } = await pool.query(
     'UPDATE categorias_productos SET comando=$1, nombre=$2, descripcion=$3, activo=$4 WHERE id=$5 RETURNING *',
@@ -57,7 +143,7 @@ app.put('/api/categorias/:id', handler(async (req, res) => {
   res.json(rows[0]);
 }));
 
-app.delete('/api/categorias/:id', handler(async (req, res) => {
+app.delete('/api/categorias/:id', requireAuth, handler(async (req, res) => {
   await pool.query('DELETE FROM categorias_productos WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 }));
@@ -65,7 +151,7 @@ app.delete('/api/categorias/:id', handler(async (req, res) => {
 // ════════════════════════════════════════════
 // PRODUCTOS
 // ════════════════════════════════════════════
-app.get('/api/productos', handler(async (req, res) => {
+app.get('/api/productos', requireAuth, handler(async (req, res) => {
   const { rows } = await pool.query(`
     SELECT p.*, c.nombre AS categoria_nombre,
       COALESCE((
@@ -81,7 +167,7 @@ app.get('/api/productos', handler(async (req, res) => {
   res.json(rows);
 }));
 
-app.post('/api/productos', handler(async (req, res) => {
+app.post('/api/productos', requireAuth, handler(async (req, res) => {
   const { comando, categoria_id, nombre, precio_pen, precio_usd, alerta_stock_en, usos_maximos, link_instalador } = req.body;
   const { rows } = await pool.query(
     'INSERT INTO productos (comando, categoria_id, nombre, precio_pen, precio_usd, alerta_stock_en, usos_maximos, link_instalador) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
@@ -90,7 +176,7 @@ app.post('/api/productos', handler(async (req, res) => {
   res.json(rows[0]);
 }));
 
-app.put('/api/productos/:id', handler(async (req, res) => {
+app.put('/api/productos/:id', requireAuth, handler(async (req, res) => {
   const { comando, categoria_id, nombre, precio_pen, precio_usd, alerta_stock_en, usos_maximos, activo, link_instalador } = req.body;
   const { rows } = await pool.query(
     'UPDATE productos SET comando=$1, categoria_id=$2, nombre=$3, precio_pen=$4, precio_usd=$5, alerta_stock_en=$6, usos_maximos=$7, activo=$8, link_instalador=$9 WHERE id=$10 RETURNING *',
@@ -99,7 +185,7 @@ app.put('/api/productos/:id', handler(async (req, res) => {
   res.json(rows[0]);
 }));
 
-app.delete('/api/productos/:id', handler(async (req, res) => {
+app.delete('/api/productos/:id', requireAuth, handler(async (req, res) => {
   await pool.query('DELETE FROM productos WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 }));
@@ -107,7 +193,7 @@ app.delete('/api/productos/:id', handler(async (req, res) => {
 // ════════════════════════════════════════════
 // CLAVES SERIALES
 // ════════════════════════════════════════════
-app.get('/api/seriales', handler(async (req, res) => {
+app.get('/api/seriales', requireAuth, handler(async (req, res) => {
   const { producto_id, estado } = req.query;
   let query = `
     SELECT cs.*, p.nombre AS producto_nombre, t.nombre AS tecnico_nombre
@@ -125,7 +211,7 @@ app.get('/api/seriales', handler(async (req, res) => {
 }));
 
 // IMPORTANTE: bulk debe ir ANTES que /:id para que Express no confunda "bulk" con un id
-app.post('/api/seriales/bulk', handler(async (req, res) => {
+app.post('/api/seriales/bulk', requireAuth, handler(async (req, res) => {
   const { producto_id, claves_texto, caducidad, id_eset } = req.body;
   const claves = claves_texto.split('\n').map(c => c.trim()).filter(c => c.length > 0);
   if (claves.length === 0) return res.status(400).json({ error: 'No hay claves para insertar' });
@@ -140,7 +226,7 @@ app.post('/api/seriales/bulk', handler(async (req, res) => {
   res.json({ insertadas });
 }));
 
-app.post('/api/seriales', handler(async (req, res) => {
+app.post('/api/seriales', requireAuth, handler(async (req, res) => {
   const { producto_id, clave } = req.body;
   const { rows } = await pool.query(
     "INSERT INTO claves_seriales (producto_id, clave, estado) VALUES ($1,$2,'disponible') RETURNING *",
@@ -149,7 +235,19 @@ app.post('/api/seriales', handler(async (req, res) => {
   res.json(rows[0]);
 }));
 
-app.delete('/api/seriales/:id', handler(async (req, res) => {
+app.put('/api/seriales/:id', requireAuth, handler(async (req, res) => {
+  const { estado } = req.body;
+  const allowed = ['disponible', 'entregada', 'expirada'];
+  if (!allowed.includes(estado)) return res.status(400).json({ error: 'Estado inválido' });
+  const { rows } = await pool.query(
+    'UPDATE claves_seriales SET estado=$1 WHERE id=$2 RETURNING *',
+    [estado, req.params.id]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Serial no encontrada' });
+  res.json(rows[0]);
+}));
+
+app.delete('/api/seriales/:id', requireAuth, handler(async (req, res) => {
   await pool.query('DELETE FROM claves_seriales WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 }));
@@ -157,7 +255,7 @@ app.delete('/api/seriales/:id', handler(async (req, res) => {
 // ════════════════════════════════════════════
 // TÉCNICOS
 // ════════════════════════════════════════════
-app.get('/api/tecnicos', handler(async (req, res) => {
+app.get('/api/tecnicos', requireAuth, handler(async (req, res) => {
   const { rows } = await pool.query(`
     SELECT t.*,
       COUNT(p.id) FILTER (WHERE p.estado_pago = 'pendiente') AS pedidos_pendientes,
@@ -171,7 +269,7 @@ app.get('/api/tecnicos', handler(async (req, res) => {
   res.json(rows);
 }));
 
-app.post('/api/tecnicos', handler(async (req, res) => {
+app.post('/api/tecnicos', requireAuth, handler(async (req, res) => {
   const { telefono, nombre, saldo_usdt } = req.body;
   const { rows } = await pool.query(
     'INSERT INTO tecnicos (telefono, nombre, saldo_usdt) VALUES ($1,$2,$3) RETURNING *',
@@ -180,7 +278,7 @@ app.post('/api/tecnicos', handler(async (req, res) => {
   res.json(rows[0]);
 }));
 
-app.put('/api/tecnicos/:id', handler(async (req, res) => {
+app.put('/api/tecnicos/:id', requireAuth, handler(async (req, res) => {
   const { nombre, telefono } = req.body;
   const { rows } = await pool.query(
     'UPDATE tecnicos SET nombre=$1, telefono=$2 WHERE id=$3 RETURNING *',
@@ -189,7 +287,7 @@ app.put('/api/tecnicos/:id', handler(async (req, res) => {
   res.json(rows[0]);
 }));
 
-app.put('/api/tecnicos/:id/saldo', handler(async (req, res) => {
+app.put('/api/tecnicos/:id/saldo', requireAuth, handler(async (req, res) => {
   const { saldo_usdt } = req.body;
   const { rows } = await pool.query(
     'UPDATE tecnicos SET saldo_usdt=$1 WHERE id=$2 RETURNING *',
@@ -198,7 +296,7 @@ app.put('/api/tecnicos/:id/saldo', handler(async (req, res) => {
   res.json(rows[0]);
 }));
 
-app.put('/api/tecnicos/:id/estado', handler(async (req, res) => {
+app.put('/api/tecnicos/:id/estado', requireAuth, handler(async (req, res) => {
   const { estado } = req.body;
   const { rows } = await pool.query(
     'UPDATE tecnicos SET estado=$1 WHERE id=$2 RETURNING *',
@@ -210,7 +308,7 @@ app.put('/api/tecnicos/:id/estado', handler(async (req, res) => {
 // ════════════════════════════════════════════
 // STOCK RESUMEN
 // ════════════════════════════════════════════
-app.get('/api/stock', handler(async (req, res) => {
+app.get('/api/stock', requireAuth, handler(async (req, res) => {
   const { rows } = await pool.query(`
     SELECT p.id, p.nombre, p.comando, p.alerta_stock_en, p.usos_maximos,
       COALESCE(SUM(p.usos_maximos - cs.usos_actuales) FILTER (WHERE cs.estado = 'disponible'), 0) AS disponibles,
@@ -228,7 +326,7 @@ app.get('/api/stock', handler(async (req, res) => {
 // ════════════════════════════════════════════
 // PAGOS (pedidos agrupados por técnico)
 // ════════════════════════════════════════════
-app.get('/api/pagos/resumen', handler(async (req, res) => {
+app.get('/api/pagos/resumen', requireAuth, handler(async (req, res) => {
   const { desde, hasta } = req.query;
   const params = [];
   let where = 'WHERE 1=1';
@@ -258,7 +356,7 @@ app.get('/api/pagos/resumen', handler(async (req, res) => {
   res.json(rows);
 }));
 
-app.get('/api/pagos/detalle', handler(async (req, res) => {
+app.get('/api/pagos/detalle', requireAuth, handler(async (req, res) => {
   const { tecnico_id, estado_pago, desde, hasta } = req.query;
   let query = `
     SELECT
@@ -285,7 +383,7 @@ app.get('/api/pagos/detalle', handler(async (req, res) => {
 // ════════════════════════════════════════════
 // ACTIVACIONES ESET
 // ════════════════════════════════════════════
-app.get('/api/activaciones/eset', handler(async (req, res) => {
+app.get('/api/activaciones/eset', requireAuth, handler(async (req, res) => {
   const { tecnico_id, estado } = req.query;
   let query = `
     SELECT
@@ -307,7 +405,7 @@ app.get('/api/activaciones/eset', handler(async (req, res) => {
   res.json(rows);
 }));
 
-app.get('/api/activaciones/eset/resumen', handler(async (req, res) => {
+app.get('/api/activaciones/eset/resumen', requireAuth, handler(async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
       t.id AS tecnico_id,
@@ -332,7 +430,7 @@ app.get('/api/activaciones/eset/resumen', handler(async (req, res) => {
 // ════════════════════════════════════════════
 // LICENCIAS ACTIVADAS (tabla activaciones_eset)
 // ════════════════════════════════════════════
-app.get('/api/activaciones-eset', handler(async (req, res) => {
+app.get('/api/activaciones-eset', requireAuth, handler(async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
       ae.id, ae.clave_id, ae.tecnico_id, ae.id_publico, ae.nombre_equipo,

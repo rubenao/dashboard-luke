@@ -154,6 +154,8 @@
   <h1>Panel Admin</h1>
   <span>Sistema de Licencias</span>
   <div class="dot" title="Conectado"></div>
+  <span id="header-user" style="color:#64748b;font-size:13px;margin-left:auto;margin-right:12px;"></span>
+  <button onclick="logout()" style="padding:6px 14px;background:#1a1d27;border:1px solid #2a2d3e;border-radius:7px;color:#e2e8f0;cursor:pointer;font-size:12px;">Cerrar sesión</button>
 </header>
 
 <div class="tabs">
@@ -164,6 +166,7 @@
   <div class="tab" onclick="setTab('tecnicos')">👥 Técnicos</div>
   <div class="tab" onclick="setTab('pagos')">💰 Pagos</div>
   <div class="tab" onclick="setTab('eset')">🛡️ Activaciones ESET</div>
+  <div class="tab" onclick="setTab('usuarios')">👤 Usuarios</div>
 </div>
 
 <!-- ══ STOCK ══ -->
@@ -366,6 +369,22 @@
   </div>
 </div>
 
+<!-- ══════════ USUARIOS ══════════ -->
+<div class="page" id="page-usuarios">
+  <div class="toolbar">
+    <h2>Usuarios Admin</h2>
+    <div class="toolbar-right">
+      <button class="btn btn-primary" onclick="openModal('modal-usuario')">+ Nuevo usuario</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Usuario</th><th>Nombre</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr></thead>
+      <tbody id="usuarios-tabla"></tbody>
+    </table>
+  </div>
+</div>
+
 <!-- ══════════ MODALES ══════════ -->
 
 <!-- Nueva / Editar categoría -->
@@ -474,9 +493,83 @@
   </div>
 </div>
 
+<!-- Editar serial -->
+<div class="overlay" id="modal-editar-serial">
+  <div class="modal">
+    <h3>Editar Serial</h3>
+    <input type="hidden" id="editar-serial-id">
+    <div class="field"><label>Clave</label><input id="editar-serial-clave" readonly></div>
+    <div class="field">
+      <label>Estado</label>
+      <select id="editar-serial-estado">
+        <option value="disponible">Disponible</option>
+        <option value="entregada">Entregada</option>
+        <option value="expirada">Expirada</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-editar-serial')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEditSerial()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
+<!-- Modal nuevo/editar usuario -->
+<div class="overlay" id="modal-usuario">
+  <div class="modal">
+    <h3 id="modal-usuario-titulo">Nuevo Usuario</h3>
+    <input type="hidden" id="usuario-id">
+    <div class="field">
+      <label>Usuario *</label>
+      <input id="usuario-username" placeholder="ej: juan">
+    </div>
+    <div class="field">
+      <label>Nombre</label>
+      <input id="usuario-nombre" placeholder="ej: Juan Pérez">
+    </div>
+    <div class="field">
+      <label id="usuario-password-label">Contraseña *</label>
+      <input id="usuario-password" type="password" placeholder="Mínimo 6 caracteres">
+      <small id="usuario-password-hint" style="color:var(--muted);font-size:12px;display:none;margin-top:4px;display:none">Dejar vacío para no cambiar la contraseña</small>
+    </div>
+    <div class="field">
+      <label>Estado</label>
+      <select id="usuario-activo">
+        <option value="true">Activo</option>
+        <option value="false">Inactivo</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-usuario')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUsuario()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// ── Auth ─────────────────────────────────────
+(function checkAuth() {
+  const token = localStorage.getItem('admin_token');
+  if (!token) { window.location.replace('/login.html'); return; }
+  fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } })
+    .then(r => {
+      if (!r.ok) { localStorage.removeItem('admin_token'); window.location.replace('/login.html'); }
+      else r.json().then(u => {
+        const el = document.getElementById('header-user');
+        if (el) el.textContent = u.nombre || u.username || '';
+      });
+    })
+    .catch(() => { window.location.replace('/login.html'); });
+})();
+
+function logout() {
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_nombre');
+  window.location.replace('/login.html');
+}
+
 const API = '/api';
 let _categorias = [];
 let _productos   = [];
@@ -484,11 +577,11 @@ let _tecnicos    = [];
 
 // ── Tabs ──────────────────────────────────
 function setTab(name) {
-  const labels = { stock:'Stock', categorias:'Categorías', productos:'Productos', seriales:'Seriales', tecnicos:'Técnicos', pagos:'Pagos', eset:'ESET' };
+  const labels = { stock:'Stock', categorias:'Categorías', productos:'Productos', seriales:'Seriales', tecnicos:'Técnicos', pagos:'Pagos', eset:'ESET', usuarios:'Usuarios' };
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.textContent.includes(labels[name])));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
-  ({ stock: loadStock, categorias: loadCategorias, productos: loadProductos, seriales: loadSeriales, tecnicos: loadTecnicos, pagos: loadPagos, eset: loadEset })[name]();
+  ({ stock: loadStock, categorias: loadCategorias, productos: loadProductos, seriales: loadSeriales, tecnicos: loadTecnicos, pagos: loadPagos, eset: loadEset, usuarios: loadUsuarios })[name]();
 }
 
 // ── Modales ───────────────────────────────
@@ -510,11 +603,13 @@ function toast(msg, ok = true) {
 
 // ── Fetch helper ──────────────────────────
 async function api(path, method = 'GET', body) {
+  const token = localStorage.getItem('admin_token');
   const res = await fetch(API + path, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
     body: body ? JSON.stringify(body) : undefined
   });
+  if (res.status === 401) { logout(); return; }
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Error desconocido');
   return data;
@@ -765,41 +860,6 @@ async function deleteProducto(id) {
 }
 
 // ══════════ SERIALES ══════════
-async function loadSeriales() {
-  try {
-    // Si aún no se cargaron los productos, traerlos para poblar el filtro
-    if (_productos.length === 0) {
-      _productos = await api('/productos');
-    }
-    const sel = document.getElementById('filtro-producto');
-    const valorActual = sel.value;
-    sel.innerHTML = '<option value="">Todos los productos</option>' +
-      _productos.map(p => `<option value="${p.id}">${p.comando} - ${p.nombre}</option>`).join('');
-    sel.value = valorActual; // mantener selección si ya había una
-
-    const pid = sel.value;
-    const est = document.getElementById('filtro-estado').value;
-    const params = new URLSearchParams();
-    if (pid) params.set('producto_id', pid);
-    if (est) params.set('estado', est);
-    const data = await api('/seriales?' + params);
-    document.getElementById('tabla-seriales').innerHTML = data.map(s => {
-      const badge = s.estado === 'disponible' ? 'badge-green' : s.estado === 'entregada' ? 'badge-blue' : 'badge-red';
-      const fecha = s.fecha_entrega ? new Date(s.fecha_entrega).toLocaleDateString('es-PE') : '—';
-      return `<tr>
-        <td class="text-muted">${s.id}</td>
-        <td class="monospace" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.clave}">${s.clave}</td>
-        <td>${s.producto_nombre || '—'}</td>
-        <td><span class="badge ${badge}">${s.estado}</span></td>
-        <td class="text-muted">${s.tecnico_nombre || '—'}</td>
-        <td class="text-muted">${fecha}</td>
-        <td class="text-muted">${s.caducidad || '—'}</td>
-        <td class="monospace text-muted" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.id_eset || ''}">${s.id_eset || '—'}</td>
-        <td>${s.estado === 'disponible' ? `<button class="btn btn-danger btn-sm" onclick="deleteSerial(${s.id})">✕</button>` : ''}</td>
-      </tr>`;
-    }).join('');
-  } catch(e) { toast('Error cargando seriales: ' + e.message, false); }
-}
 
 function fillSelectSerialProductos() {
   const opts = _productos.map(p => `<option value="${p.id}">${p.comando} - ${p.nombre}</option>`).join('');
@@ -848,6 +908,64 @@ async function deleteSerial(id) {
   if (!confirm('¿Eliminar esta clave?')) return;
   try { await api('/seriales/' + id, 'DELETE'); toast('Clave eliminada'); loadSeriales(); }
   catch(e) { toast('Error: ' + e.message, false); }
+}
+
+let _serialesData = [];
+
+async function loadSeriales() {
+  try {
+    if (_productos.length === 0) _productos = await api('/productos');
+    const sel = document.getElementById('filtro-producto');
+    const valorActual = sel.value;
+    sel.innerHTML = '<option value="">Todos los productos</option>' +
+      _productos.map(p => `<option value="${p.id}">${p.comando} - ${p.nombre}</option>`).join('');
+    sel.value = valorActual;
+    const pid = sel.value;
+    const est = document.getElementById('filtro-estado').value;
+    const params = new URLSearchParams();
+    if (pid) params.set('producto_id', pid);
+    if (est) params.set('estado', est);
+    const data = await api('/seriales?' + params);
+    _serialesData = data;
+    document.getElementById('tabla-seriales').innerHTML = data.map(s => {
+      const badge = s.estado === 'disponible' ? 'badge-green' : s.estado === 'entregada' ? 'badge-blue' : 'badge-red';
+      const fecha = s.fecha_entrega ? new Date(s.fecha_entrega).toLocaleDateString('es-PE') : '—';
+      return `<tr>
+        <td class="text-muted">${s.id}</td>
+        <td class="monospace" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.clave}">${s.clave}</td>
+        <td>${s.producto_nombre || '—'}</td>
+        <td><span class="badge ${badge}">${s.estado}</span></td>
+        <td class="text-muted">${s.tecnico_nombre || '—'}</td>
+        <td class="text-muted">${fecha}</td>
+        <td class="text-muted">${s.caducidad || '—'}</td>
+        <td class="monospace text-muted" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.id_eset || ''}">${s.id_eset || '—'}</td>
+        <td><div class="actions">
+          <button class="btn btn-warning btn-sm" onclick="editSerial(${s.id})">Editar</button>
+          ${s.estado === 'disponible' ? `<button class="btn btn-danger btn-sm" onclick="deleteSerial(${s.id})">✕</button>` : ''}
+        </div></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { toast('Error cargando seriales: ' + e.message, false); }
+}
+
+function editSerial(id) {
+  const s = _serialesData.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('editar-serial-id').value = s.id;
+  document.getElementById('editar-serial-clave').value = s.clave;
+  document.getElementById('editar-serial-estado').value = s.estado;
+  document.getElementById('modal-editar-serial').classList.add('open');
+}
+
+async function saveEditSerial() {
+  const id     = document.getElementById('editar-serial-id').value;
+  const estado = document.getElementById('editar-serial-estado').value;
+  try {
+    await api('/seriales/' + id, 'PUT', { estado });
+    closeModal('modal-editar-serial');
+    toast('Serial actualizada');
+    loadSeriales();
+  } catch(e) { toast('Error: ' + e.message, false); }
 }
 
 // ══════════ TÉCNICOS ══════════
@@ -1208,6 +1326,89 @@ function filtrarLicencias() {
   await Promise.all([loadCategorias(), loadProductos()]);
   loadStock();
 })();
+
+// ── Usuarios ──────────────────────────────
+let _usuariosData = [];
+
+async function loadUsuarios() {
+  _usuariosData = await api('/usuarios');
+  const fmt = d => d ? new Date(d).toLocaleString('es-PE', { dateStyle:'short', timeStyle:'short' }) : '—';
+  document.getElementById('usuarios-tabla').innerHTML = _usuariosData.map(u => `
+    <tr>
+      <td>${u.id}</td>
+      <td><strong>${u.username}</strong></td>
+      <td>${u.nombre || '—'}</td>
+      <td><span class="badge ${u.activo ? 'badge-green' : 'badge-red'}">${u.activo ? 'Activo' : 'Inactivo'}</span></td>
+      <td>${fmt(u.last_login)}</td>
+      <td>
+        <button class="btn btn-ghost" onclick="editUsuario(${u.id})">Editar</button>
+        <button class="btn btn-danger" onclick="deleteUsuario(${u.id},'${u.username}')">Eliminar</button>
+      </td>
+    </tr>`).join('');
+}
+
+function editUsuario(id) {
+  const u = _usuariosData.find(x => x.id === id);
+  if (!u) return;
+  document.getElementById('modal-usuario-titulo').textContent = 'Editar Usuario';
+  document.getElementById('usuario-id').value = u.id;
+  document.getElementById('usuario-username').value = u.username;
+  document.getElementById('usuario-username').disabled = true;
+  document.getElementById('usuario-nombre').value = u.nombre || '';
+  document.getElementById('usuario-password').value = '';
+  document.getElementById('usuario-password-label').textContent = 'Nueva contraseña';
+  document.getElementById('usuario-password-hint').style.display = 'block';
+  document.getElementById('usuario-activo').value = u.activo ? 'true' : 'false';
+  document.getElementById('modal-usuario').classList.add('open');
+}
+
+async function saveUsuario() {
+  const id = document.getElementById('usuario-id').value;
+  const username = document.getElementById('usuario-username').value.trim();
+  const nombre = document.getElementById('usuario-nombre').value.trim();
+  const password = document.getElementById('usuario-password').value;
+  const activo = document.getElementById('usuario-activo').value === 'true';
+  try {
+    if (id) {
+      const body = { nombre, activo };
+      if (password) body.password = password;
+      await api('/usuarios/' + id, 'PUT', body);
+      toast('Usuario actualizado');
+    } else {
+      if (!username || !password) return toast('Usuario y contraseña requeridos', false);
+      await api('/usuarios', 'POST', { username, nombre, password });
+      toast('Usuario creado');
+    }
+    closeModal('modal-usuario');
+    loadUsuarios();
+  } catch(e) { toast(e.message, false); }
+}
+
+async function deleteUsuario(id, username) {
+  if (!confirm(`¿Eliminar usuario "${username}"?`)) return;
+  try {
+    await api('/usuarios/' + id, 'DELETE');
+    toast('Usuario eliminado');
+    loadUsuarios();
+  } catch(e) { toast(e.message, false); }
+}
+
+// Reset modal al abrir nuevo usuario
+const _origOpenModal = openModal;
+openModal = function(id) {
+  if (id === 'modal-usuario') {
+    document.getElementById('modal-usuario-titulo').textContent = 'Nuevo Usuario';
+    document.getElementById('usuario-id').value = '';
+    document.getElementById('usuario-username').value = '';
+    document.getElementById('usuario-username').disabled = false;
+    document.getElementById('usuario-nombre').value = '';
+    document.getElementById('usuario-password').value = '';
+    document.getElementById('usuario-password-label').textContent = 'Contraseña *';
+    document.getElementById('usuario-password-hint').style.display = 'none';
+    document.getElementById('usuario-activo').value = 'true';
+  }
+  _origOpenModal(id);
+};
 </script>
 </body>
 </html>
